@@ -328,7 +328,6 @@ export function GroupForm() {
         </CardHeader>
         <CardContent className="p-0">
           {groups.length > 0 ? (
-            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
@@ -336,7 +335,7 @@ export function GroupForm() {
                   <TableHead>Cliente principal</TableHead>
                   <TableHead>Clientes asociados</TableHead>
                   <TableHead>ID técnico</TableHead>
-                  <TableHead className="text-right">Acción</TableHead>
+                  <TableHead>Acción</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -344,9 +343,9 @@ export function GroupForm() {
                   <TableRow key={group.id}>
                     <TableCell className="font-medium">{group.displayName}</TableCell>
                     <TableCell>{getClientLabel(clients, group.parentClientId)}</TableCell>
-                    <TableCell>
+                    <TableCell className="whitespace-normal">
                       {group.childClients.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap justify-center gap-1">
                           {group.childClients.map((client) => (
                             <Badge
                               key={client.id}
@@ -365,7 +364,7 @@ export function GroupForm() {
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {formatShortId(group.id)}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="whitespace-nowrap">
                       <Button
                         type="button"
                         size="sm"
@@ -380,7 +379,6 @@ export function GroupForm() {
                 ))}
               </TableBody>
             </Table>
-            </div>
           ) : (
             <Empty className="m-6 rounded-2xl border bg-muted/20">
               <EmptyHeader>

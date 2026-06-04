@@ -15,6 +15,16 @@ export interface DashboardInvitationAuthAdmin {
   ) => Promise<{ userId: string; email: string | null }>
 }
 
+export type DashboardInvitationStatus = "accepted" | "pending" | "not_invited"
+
+export interface DashboardAuthUserInvitationState {
+  id?: string
+  email: string | null
+  invitedAt: string | null
+  emailConfirmedAt: string | null
+  lastSignInAt: string | null
+}
+
 export interface DashboardInvitationRepository {
   getClientById: (clientId: string) => Promise<Client | null>
   upsertProfile: (input: UpsertProfileInput) => Promise<Profile>
@@ -44,6 +54,16 @@ interface InviteDashboardUserParams {
   actorClientId: string | null
   appUrl: string
   input: DashboardInvitationInput
+}
+
+interface ResendDashboardInvitationParams {
+  authAdmin: DashboardInvitationAuthAdmin
+  repository: DashboardInvitationRepository
+  actorUserId: string
+  actorClientId: string | null
+  appUrl: string
+  profile: Profile
+  authUser: DashboardAuthUserInvitationState
 }
 
 export const inviteDashboardUser = async ({
@@ -111,6 +131,68 @@ export const inviteDashboardUser = async ({
   return profile
 }
 
+export const getDashboardInvitationStatus = ({
+  emailConfirmedAt,
+  invitedAt,
+}: Pick<
+  DashboardAuthUserInvitationState,
+  "emailConfirmedAt" | "invitedAt"
+>): DashboardInvitationStatus => {
+  if (emailConfirmedAt) {
+    return "accepted"
+  }
+
+  if (invitedAt) {
+    return "pending"
+  }
+
+  return "not_invited"
+}
+
+export const resendDashboardInvitation = async ({
+  authAdmin,
+  repository,
+  actorUserId,
+  actorClientId,
+  appUrl,
+  profile,
+  authUser,
+}: ResendDashboardInvitationParams) => {
+  if (authUser.emailConfirmedAt) {
+    throw new DashboardInvitationValidationError(
+      "This user already accepted the invitation"
+    )
+  }
+
+  const email = authUser.email?.trim().toLowerCase()
+
+  if (!email || !isValidEmail(email)) {
+    throw new DashboardInvitationValidationError(
+      "This user does not have a valid email address"
+    )
+  }
+
+  await inviteWithActionableError(authAdmin, email, {
+    redirectTo: createInviteRedirectUrl(appUrl),
+    data: createInvitationMetadata(profile),
+  })
+
+  await repository.insertAuditEvent({
+    actorUserId,
+    actorClientId,
+    eventType: "permission_changed",
+    targetType: "profile",
+    targetId: profile.id,
+    metadata: {
+      action: "invitation_resent",
+      email,
+      clientId: profile.clientId,
+    },
+  })
+
+  return { email }
+}
+
 export const createInviteRedirectUrl = (appUrl: string) => {
   const origin = new URL(normalizeAppUrl(appUrl)).origin
   return `${origin}/auth/accept-invite`
@@ -135,5 +217,10 @@ const inviteWithActionableError = async (
     throw new DashboardInvitationAuthError()
   }
 }
+
+const createInvitationMetadata = (profile: Profile) => ({
+  displayName: profile.displayName,
+  ...(profile.clientId ? { dashboardClientId: profile.clientId } : {}),
+})
 
 const isValidEmail = (email: string) => /\S+@\S+\.\S+/.test(email)

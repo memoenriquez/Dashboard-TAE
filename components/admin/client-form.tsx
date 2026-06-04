@@ -307,7 +307,6 @@ export function ClientForm() {
         </CardHeader>
         <CardContent className="p-0">
           {clients.length > 0 ? (
-            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
@@ -316,7 +315,7 @@ export function ClientForm() {
                   <TableHead>Tipo</TableHead>
                   <TableHead>Relaciones</TableHead>
                   <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Acción</TableHead>
+                  <TableHead>Acción</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -333,7 +332,7 @@ export function ClientForm() {
                         {client.isActive ? "Activo" : "Inactivo"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="whitespace-nowrap">
                       <Button
                         type="button"
                         size="sm"
@@ -348,7 +347,6 @@ export function ClientForm() {
                 ))}
               </TableBody>
             </Table>
-            </div>
           ) : (
             <Empty className="m-6 rounded-2xl border bg-muted/20">
               <EmptyHeader>
@@ -395,16 +393,16 @@ export function ClientForm() {
           </form>
 
           {externalClients.length > 0 ? (
-            <div className="overflow-x-auto rounded-xl border">
+            <div className="rounded-xl border">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30">
                     <TableHead>Nombre</TableHead>
                     <TableHead>ID de cliente</TableHead>
-                    <TableHead className="text-right">Transacciones</TableHead>
+                    <TableHead>Transacciones</TableHead>
                     <TableHead>Última transacción</TableHead>
                     <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Acción</TableHead>
+                    <TableHead>Acción</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -414,7 +412,7 @@ export function ClientForm() {
                       <TableCell className="tabular-nums">
                         {client.externalClientId}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">
+                      <TableCell className="tabular-nums">
                         {client.transactionCount.toLocaleString("es-MX")}
                       </TableCell>
                       <TableCell>
@@ -427,7 +425,7 @@ export function ClientForm() {
                           {client.isLinked ? "Vinculado" : "No vinculado"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="whitespace-nowrap">
                         <Button
                           type="button"
                           size="sm"

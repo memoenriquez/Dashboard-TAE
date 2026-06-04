@@ -48,6 +48,11 @@ interface ProfileRecord {
   clientId: string | null
   isInternalAdmin: boolean
   displayName: string
+  email: string | null
+  invitedAt: string | null
+  emailConfirmedAt: string | null
+  lastSignInAt: string | null
+  invitationStatus: "accepted" | "pending" | "not_invited"
 }
 
 interface ClientRecord {
@@ -71,6 +76,7 @@ export function ProfileForm() {
   } | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isResendingProfileId, setIsResendingProfileId] = useState<string | null>(null)
 
   const loadData = async () => {
     setIsLoading(true)
@@ -181,8 +187,50 @@ export function ProfileForm() {
     setMessage(null)
   }
 
+  const handleResendInvitation = async (profile: ProfileRecord) => {
+    setMessage(null)
+    setIsResendingProfileId(profile.id)
+
+    let response: Response
+
+    try {
+      response = await fetch("/api/admin/invitations/resend", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ profileId: profile.id }),
+      })
+    } catch {
+      setMessage({
+        type: "error",
+        text: "No fue posible reenviar la invitación en este momento.",
+      })
+      setIsResendingProfileId(null)
+      return
+    }
+
+    if (!response.ok) {
+      setMessage({
+        type: "error",
+        text: await readApiErrorMessage(
+          response,
+          "No fue posible reenviar la invitación."
+        ),
+      })
+      setIsResendingProfileId(null)
+      return
+    }
+
+    setMessage({
+      type: "success",
+      text: `Invitación reenviada a ${profile.email ?? profile.displayName}.`,
+    })
+    await loadData()
+    setIsResendingProfileId(null)
+  }
+
   const canSubmit =
     isSubmitting ||
+    Boolean(isResendingProfileId) ||
     (!editingProfile && clients.length === 0) ||
     (editingProfile ? !editingProfile.isInternalAdmin && !clientId : !clientId)
   const selectedClientLabel = clientId ? getClientLabel(clients, clientId) : ""
@@ -325,21 +373,25 @@ export function ProfileForm() {
         </CardHeader>
         <CardContent className="p-0">
           {profiles.length > 0 ? (
-            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
                   <TableHead>Nombre</TableHead>
+                  <TableHead>Correo</TableHead>
                   <TableHead>ID técnico</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Rol</TableHead>
-                  <TableHead className="text-right">Acción</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Acción</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {profiles.map((profile) => (
                   <TableRow key={profile.id}>
                     <TableCell className="font-medium">{profile.displayName}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {profile.email ?? "Sin correo"}
+                    </TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {formatShortId(profile.id)}
                     </TableCell>
@@ -349,22 +401,50 @@ export function ProfileForm() {
                         {profile.isInternalAdmin ? "Administrador" : "Usuario"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={isSubmitting}
-                        onClick={() => handleEditProfile(profile)}
-                      >
-                        Editar
-                      </Button>
+                    <TableCell>
+                      <div className="flex min-w-0 flex-col items-center gap-1">
+                        <Badge variant={getInvitationStatusVariant(profile.invitationStatus)}>
+                          {getInvitationStatusLabel(profile.invitationStatus)}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {getInvitationStatusDescription(profile)}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap justify-center gap-2">
+                        {profile.invitationStatus !== "accepted" && profile.email ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            disabled={
+                              isSubmitting ||
+                              Boolean(isResendingProfileId) ||
+                              !profile.email
+                            }
+                            onClick={() => handleResendInvitation(profile)}
+                          >
+                            {isResendingProfileId === profile.id
+                              ? "Reenviando..."
+                              : "Reenviar invitación"}
+                          </Button>
+                        ) : null}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={isSubmitting || Boolean(isResendingProfileId)}
+                          onClick={() => handleEditProfile(profile)}
+                        >
+                          Editar
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-            </div>
           ) : (
             <Empty className="m-6 rounded-2xl border bg-muted/20">
               <EmptyHeader>
@@ -382,4 +462,50 @@ export function ProfileForm() {
     </div>
   )
 }
+
+const getInvitationStatusLabel = (status: ProfileRecord["invitationStatus"]) => {
+  if (status === "accepted") {
+    return "Aceptada"
+  }
+
+  if (status === "pending") {
+    return "Pendiente"
+  }
+
+  return "Sin invitación"
+}
+
+const getInvitationStatusVariant = (status: ProfileRecord["invitationStatus"]) => {
+  if (status === "accepted") {
+    return "secondary"
+  }
+
+  if (status === "pending") {
+    return "outline"
+  }
+
+  return "destructive"
+}
+
+const getInvitationStatusDescription = (profile: ProfileRecord) => {
+  if (profile.invitationStatus === "accepted") {
+    return profile.lastSignInAt
+      ? `Último acceso: ${formatDateTime(profile.lastSignInAt)}`
+      : "Cuenta confirmada, sin accesos recientes"
+  }
+
+  if (profile.invitationStatus === "pending") {
+    return profile.invitedAt
+      ? `Invitada: ${formatDateTime(profile.invitedAt)}`
+      : "Invitación pendiente"
+  }
+
+  return "Puede recibir una invitación nueva"
+}
+
+const formatDateTime = (value: string) =>
+  new Intl.DateTimeFormat("es-MX", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value))
 

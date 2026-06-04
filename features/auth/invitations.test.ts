@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest"
 import {
   DashboardInvitationAuthError,
   DashboardInvitationValidationError,
+  getDashboardInvitationStatus,
   inviteDashboardUser,
+  resendDashboardInvitation,
   type DashboardInvitationAuthAdmin,
   type DashboardInvitationRepository,
 } from "./invitations"
@@ -240,6 +242,140 @@ describe("inviteDashboardUser", () => {
     )
 
     expect(repository.profileWrites).toEqual([])
+    expect(repository.auditWrites).toEqual([])
+  })
+})
+
+describe("getDashboardInvitationStatus", () => {
+  it("marks confirmed users as accepted", () => {
+    expect(
+      getDashboardInvitationStatus({
+        emailConfirmedAt: "2026-01-02T00:00:00.000Z",
+        invitedAt: "2026-01-01T00:00:00.000Z",
+      })
+    ).toBe("accepted")
+  })
+
+  it("marks invited unconfirmed users as pending", () => {
+    expect(
+      getDashboardInvitationStatus({
+        emailConfirmedAt: null,
+        invitedAt: "2026-01-01T00:00:00.000Z",
+      })
+    ).toBe("pending")
+  })
+
+  it("marks unconfirmed users without an invitation as not invited", () => {
+    expect(
+      getDashboardInvitationStatus({
+        emailConfirmedAt: null,
+        invitedAt: null,
+      })
+    ).toBe("not_invited")
+  })
+})
+
+describe("resendDashboardInvitation", () => {
+  it("resends an invitation to an unconfirmed user and records audit metadata", async () => {
+    const invites: Array<{
+      email: string
+      options: { redirectTo?: string; data?: object }
+    }> = []
+    const authAdmin: DashboardInvitationAuthAdmin = {
+      inviteUserByEmail: async (email, options) => {
+        invites.push({ email, options })
+        return { userId: "user-1", email }
+      },
+    }
+    const repository = createRepository()
+
+    await expect(
+      resendDashboardInvitation({
+        authAdmin,
+        repository,
+        actorUserId: "admin-1",
+        actorClientId: null,
+        appUrl: "https://dashboard.example.com",
+        profile: {
+          id: "user-1",
+          clientId: activeClient.id,
+          isInternalAdmin: false,
+          displayName: "Usuario Invitado",
+          createdAt: baseTimestamp,
+          updatedAt: baseTimestamp,
+        },
+        authUser: {
+          id: "user-1",
+          email: "invitado@example.com",
+          invitedAt: "2026-01-01T00:00:00.000Z",
+          emailConfirmedAt: null,
+          lastSignInAt: null,
+        },
+      })
+    ).resolves.toEqual({ email: "invitado@example.com" })
+
+    expect(invites).toEqual([
+      {
+        email: "invitado@example.com",
+        options: {
+          redirectTo:
+            "https://dashboard.example.com/auth/accept-invite",
+          data: {
+            displayName: "Usuario Invitado",
+            dashboardClientId: activeClient.id,
+          },
+        },
+      },
+    ])
+    expect(repository.auditWrites).toEqual([
+      {
+        actorUserId: "admin-1",
+        actorClientId: null,
+        eventType: "permission_changed",
+        targetType: "profile",
+        targetId: "user-1",
+        metadata: {
+          action: "invitation_resent",
+          email: "invitado@example.com",
+          clientId: activeClient.id,
+        },
+      },
+    ])
+  })
+
+  it("rejects resending invitations to accepted users", async () => {
+    const authAdmin: DashboardInvitationAuthAdmin = {
+      inviteUserByEmail: async () => {
+        throw new Error("accepted users should be rejected before inviting")
+      },
+    }
+    const repository = createRepository()
+
+    await expect(
+      resendDashboardInvitation({
+        authAdmin,
+        repository,
+        actorUserId: "admin-1",
+        actorClientId: null,
+        appUrl: "https://dashboard.example.com",
+        profile: {
+          id: "user-1",
+          clientId: activeClient.id,
+          isInternalAdmin: false,
+          displayName: "Usuario Invitado",
+          createdAt: baseTimestamp,
+          updatedAt: baseTimestamp,
+        },
+        authUser: {
+          id: "user-1",
+          email: "invitado@example.com",
+          invitedAt: "2026-01-01T00:00:00.000Z",
+          emailConfirmedAt: "2026-01-02T00:00:00.000Z",
+          lastSignInAt: "2026-01-02T00:00:00.000Z",
+        },
+      })
+    ).rejects.toThrow("This user already accepted the invitation")
+
     expect(repository.auditWrites).toEqual([])
   })
 })
