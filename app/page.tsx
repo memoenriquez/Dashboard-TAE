@@ -1,6 +1,6 @@
 import {
   ArrowRightIcon,
-  LayersIcon,
+  RadioTowerIcon,
 } from "lucide-react";
 import Image from "next/image";
 
@@ -15,7 +15,7 @@ export default function Home() {
           <div className="flex flex-col gap-8">
             <div className="flex items-center gap-3">
               <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-                <LayersIcon data-icon="inline-start" />
+                <RadioTowerIcon data-icon="inline-start" />
               </div>
               <div className="flex flex-col">
                 <span className="text-sm font-semibold tracking-tight">

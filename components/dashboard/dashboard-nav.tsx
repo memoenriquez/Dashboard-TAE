@@ -6,13 +6,14 @@ import type { ComponentType } from "react"
 import { useState } from "react"
 import {
   Building2Icon,
-  LayersIcon,
   LogOutIcon,
   NetworkIcon,
+  RadioTowerIcon,
   ReceiptTextIcon,
   UsersIcon,
 } from "lucide-react"
 
+import { ThemeToggle } from "@/components/theme-toggle"
 import {
   Sidebar,
   SidebarContent,
@@ -58,10 +59,10 @@ export function DashboardNav({ showAdmin }: DashboardNavProps) {
 
   return (
     <Sidebar collapsible="icon" variant="sidebar">
-      <SidebarHeader className="gap-3 p-3">
-        <div className="flex items-center gap-3 rounded-xl border bg-background p-2">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <LayersIcon data-icon="inline-start" />
+      <SidebarHeader className="gap-3 p-3 group-data-[collapsible=icon]:p-2">
+        <div className="flex items-center gap-3 rounded-xl border bg-background p-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground group-data-[collapsible=icon]:size-8">
+            <RadioTowerIcon />
           </div>
           <div className="flex min-w-0 flex-col group-data-[collapsible=icon]:hidden">
             <span className="truncate text-sm font-semibold">Dashboard TAE</span>
@@ -116,6 +117,9 @@ export function DashboardNav({ showAdmin }: DashboardNavProps) {
 
       <SidebarFooter className="p-3">
         <SidebarMenu>
+          <SidebarMenuItem>
+            <ThemeToggle />
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               disabled={isSigningOut}
