@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { FormEvent, useEffect, useState } from "react"
+import { toast } from "sonner"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { getInviteSessionFromHash } from "@/features/auth/invite-session"
+import { getSupabaseAuthErrorMessage } from "@/lib/supabase/auth-error-message"
 import { createClient } from "@/lib/supabase/client"
 
 export function AcceptInviteForm() {
@@ -24,32 +26,50 @@ export function AcceptInviteForm() {
 
   useEffect(() => {
     const initializeInviteSession = async () => {
-      const supabase = createClient()
-      const tokens = getInviteSessionFromHash(window.location.hash)
+      try {
+        const supabase = createClient()
+        const tokens = getInviteSessionFromHash(window.location.hash)
 
-      if (tokens) {
-        const { error } = await supabase.auth.setSession({
-          access_token: tokens.accessToken,
-          refresh_token: tokens.refreshToken,
-        })
+        if (tokens) {
+          const { error } = await supabase.auth.setSession({
+            access_token: tokens.accessToken,
+            refresh_token: tokens.refreshToken,
+          })
 
-        window.history.replaceState(null, "", window.location.pathname)
+          window.history.replaceState(null, "", window.location.pathname)
 
-        if (error) {
-          setErrorMessage(error.message)
+          if (error) {
+            setErrorMessage(
+              getSupabaseAuthErrorMessage(
+                error,
+                "La invitación no es válida o expiró."
+              )
+            )
+            setIsSessionReady(false)
+            return
+          }
+
+          setIsSessionReady(true)
+          router.refresh()
+          return
+        }
+
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser()
+
+        if (error || !user) {
+          setErrorMessage("La invitación no es válida o expiró.")
           setIsSessionReady(false)
           return
         }
 
         setIsSessionReady(true)
-        router.refresh()
-        return
+      } catch {
+        setErrorMessage("La invitación no es válida o expiró.")
+        setIsSessionReady(false)
       }
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      setIsSessionReady(Boolean(user))
     }
 
     void initializeInviteSession()
@@ -75,11 +95,15 @@ export function AcceptInviteForm() {
 
     setIsPending(true)
     const supabase = createClient()
-    const { error } = await supabase.auth.updateUser({ password })
+    const { error } = await supabase.auth.updateUser({ password }).catch(() => ({
+      error: { message: "No se pudo conectar con Supabase." },
+    }))
     setIsPending(false)
 
     if (error) {
-      setErrorMessage(error.message)
+      toast.error(
+        getSupabaseAuthErrorMessage(error, "No se pudo guardar la contraseña.")
+      )
       return
     }
 
@@ -101,18 +125,11 @@ export function AcceptInviteForm() {
         </Alert>
       ) : null}
 
-      {errorMessage && isSessionReady ? (
-        <Alert variant="destructive">
-          <AlertTitle>No se pudo guardar la contraseña</AlertTitle>
-          <AlertDescription>{errorMessage}</AlertDescription>
-        </Alert>
-      ) : null}
-
       <FieldGroup>
-        <Field data-invalid={Boolean(errorMessage)}>
+        <Field data-invalid={Boolean(errorMessage) && isSessionReady}>
           <FieldLabel htmlFor="password">Nueva contraseña</FieldLabel>
           <Input
-            aria-invalid={Boolean(errorMessage)}
+            aria-invalid={Boolean(errorMessage) && isSessionReady}
             autoComplete="new-password"
             className="bg-background"
             disabled={isPending || !isSessionReady}
@@ -127,10 +144,10 @@ export function AcceptInviteForm() {
           </FieldDescription>
         </Field>
 
-        <Field data-invalid={Boolean(errorMessage)}>
+        <Field data-invalid={Boolean(errorMessage) && isSessionReady}>
           <FieldLabel htmlFor="confirmPassword">Confirmar contraseña</FieldLabel>
           <Input
-            aria-invalid={Boolean(errorMessage)}
+            aria-invalid={Boolean(errorMessage) && isSessionReady}
             autoComplete="new-password"
             className="bg-background"
             disabled={isPending || !isSessionReady}
@@ -140,7 +157,7 @@ export function AcceptInviteForm() {
             required
             type="password"
           />
-          <FieldError>{errorMessage}</FieldError>
+          <FieldError>{isSessionReady ? errorMessage : null}</FieldError>
         </Field>
       </FieldGroup>
 

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { FormEvent, useEffect, useState } from "react"
+import { toast } from "sonner"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -13,6 +14,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { getSupabaseAuthErrorMessage } from "@/lib/supabase/auth-error-message"
 import { createClient } from "@/lib/supabase/client"
 
 export function ResetPasswordForm() {
@@ -24,23 +26,31 @@ export function ResetPasswordForm() {
 
   useEffect(() => {
     const checkRecoverySession = async () => {
-      const supabase = createClient()
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser()
+      try {
+        const supabase = createClient()
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser()
 
-      if (error || !user) {
+        if (error || !user) {
+          setErrorMessage(
+            "El enlace para restablecer tu contraseña no es válido o expiró."
+          )
+          setIsSessionReady(false)
+          setHasCheckedSession(true)
+          return
+        }
+
+        setIsSessionReady(true)
+        setHasCheckedSession(true)
+      } catch {
         setErrorMessage(
           "El enlace para restablecer tu contraseña no es válido o expiró."
         )
         setIsSessionReady(false)
         setHasCheckedSession(true)
-        return
       }
-
-      setIsSessionReady(true)
-      setHasCheckedSession(true)
     }
 
     void checkRecoverySession()
@@ -66,11 +76,15 @@ export function ResetPasswordForm() {
 
     setIsPending(true)
     const supabase = createClient()
-    const { error } = await supabase.auth.updateUser({ password })
+    const { error } = await supabase.auth.updateUser({ password }).catch(() => ({
+      error: { message: "No se pudo conectar con Supabase." },
+    }))
     setIsPending(false)
 
     if (error) {
-      setErrorMessage(error.message)
+      toast.error(
+        getSupabaseAuthErrorMessage(error, "No se pudo guardar la contraseña.")
+      )
       return
     }
 
@@ -96,13 +110,6 @@ export function ResetPasswordForm() {
             {errorMessage ??
               "Estamos preparando tu sesión para que puedas guardar una nueva contraseña."}
           </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {errorMessage && isSessionReady ? (
-        <Alert variant="destructive">
-          <AlertTitle>No se pudo guardar la contraseña</AlertTitle>
-          <AlertDescription>{errorMessage}</AlertDescription>
         </Alert>
       ) : null}
 

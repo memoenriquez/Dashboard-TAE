@@ -1,6 +1,5 @@
 "use client"
 
-import { usePathname } from "next/navigation"
 import { ThemeProvider } from "next-themes"
 
 import { Toaster } from "@/components/ui/sonner"
@@ -11,17 +10,13 @@ interface ProvidersProps {
 }
 
 export function Providers({ children }: ProvidersProps) {
-  const pathname = usePathname()
-  const isDashboardRoute = pathname.startsWith("/dashboard")
-
   return (
     <ThemeProvider
       attribute="class"
       defaultTheme="system"
       disableTransitionOnChange
       enableSystem
-      key={isDashboardRoute ? "dashboard-theme" : "public-theme"}
-      storageKey={isDashboardRoute ? "theme" : "public-theme"}
+      storageKey="theme"
     >
       <TooltipProvider>
         {children}

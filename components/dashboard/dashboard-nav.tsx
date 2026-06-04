@@ -12,6 +12,7 @@ import {
   ReceiptTextIcon,
   UsersIcon,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { ThemeToggle } from "@/components/theme-toggle"
 import {
@@ -28,6 +29,7 @@ import {
   SidebarRail,
   SidebarSeparator,
 } from "@/components/ui/sidebar"
+import { getSupabaseAuthErrorMessage } from "@/lib/supabase/auth-error-message"
 import { createClient } from "@/lib/supabase/client"
 
 const operationItems = [
@@ -51,10 +53,29 @@ export function DashboardNav({ showAdmin }: DashboardNavProps) {
 
   const handleLogOut = async () => {
     setIsSigningOut(true)
+    const toastId = toast.loading("Cerrando sesión...")
     const supabase = createClient()
-    await supabase.auth.signOut()
-    router.replace("/login")
-    router.refresh()
+    try {
+      const { error } = await supabase.auth.signOut()
+
+      if (error) {
+        toast.error(
+          getSupabaseAuthErrorMessage(error, "No fue posible cerrar sesión."),
+          { id: toastId }
+        )
+        setIsSigningOut(false)
+        return
+      }
+
+      toast.dismiss(toastId)
+      router.replace("/login")
+      router.refresh()
+    } catch {
+      toast.error("No fue posible cerrar sesión en este momento.", {
+        id: toastId,
+      })
+      setIsSigningOut(false)
+    }
   }
 
   return (

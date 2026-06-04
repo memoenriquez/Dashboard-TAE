@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,7 +18,13 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -34,6 +41,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { readApiErrorMessage } from "@/lib/api/client-error"
 
 interface ClientRecord {
   id: string
@@ -68,7 +76,7 @@ export function ClientForm() {
   const [externalSearch, setExternalSearch] = useState("")
   const [externalPage, setExternalPage] = useState(1)
   const [externalHasMore, setExternalHasMore] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
+  const [externalClientIdError, setExternalClientIdError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingExternal, setIsLoadingExternal] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -76,15 +84,20 @@ export function ClientForm() {
 
   const loadClients = useCallback(async () => {
     setIsLoading(true)
-    const response = await fetch("/api/admin/clients")
-    if (!response.ok) {
-      setMessage("No fue posible cargar clientes.")
+    try {
+      const response = await fetch("/api/admin/clients")
+      if (!response.ok) {
+        toast.error(await readApiErrorMessage(response, "No fue posible cargar clientes."))
+        return
+      }
+
+      const payload = (await response.json()) as { clients: ClientRecord[] }
+      setClients(payload.clients)
+    } catch {
+      toast.error("No fue posible cargar clientes en este momento.")
+    } finally {
       setIsLoading(false)
-      return
     }
-    const payload = (await response.json()) as { clients: ClientRecord[] }
-    setClients(payload.clients)
-    setIsLoading(false)
   }, [])
 
   const loadExternalClients = useCallback(async (page: number, search: string) => {
@@ -98,21 +111,27 @@ export function ClientForm() {
       params.set("search", search.trim())
     }
 
-    const response = await fetch(`/api/admin/external-clients?${params.toString()}`)
-    if (!response.ok) {
-      setMessage("No fue posible cargar clientes detectados.")
-      setIsLoadingExternal(false)
-      return
-    }
+    try {
+      const response = await fetch(`/api/admin/external-clients?${params.toString()}`)
+      if (!response.ok) {
+        toast.error(
+          await readApiErrorMessage(response, "No fue posible cargar clientes detectados.")
+        )
+        return
+      }
 
-    const payload = (await response.json()) as {
-      externalClients: ExternalClientRecord[]
-      pagination: { hasMore: boolean }
+      const payload = (await response.json()) as {
+        externalClients: ExternalClientRecord[]
+        pagination: { hasMore: boolean }
+      }
+      setExternalClients(payload.externalClients)
+      setExternalHasMore(payload.pagination.hasMore)
+      setExternalPage(page)
+    } catch {
+      toast.error("No fue posible cargar clientes detectados en este momento.")
+    } finally {
+      setIsLoadingExternal(false)
     }
-    setExternalClients(payload.externalClients)
-    setExternalHasMore(payload.pagination.hasMore)
-    setExternalPage(page)
-    setIsLoadingExternal(false)
   }, [])
 
   useEffect(() => {
@@ -132,7 +151,8 @@ export function ClientForm() {
     setDisplayName(client.displayName)
     setEditingClientId(null)
     setIsActive(true)
-    setMessage("Cliente seleccionado. Revisa el tipo y guarda el alta.")
+    setExternalClientIdError(null)
+    toast.info("Cliente seleccionado. Revisa el tipo y guarda el alta.")
   }
 
   const handleEditClient = (client: ClientRecord) => {
@@ -141,7 +161,8 @@ export function ClientForm() {
     setDisplayName(client.displayName)
     setClientKind(client.clientKind)
     setIsActive(client.isActive)
-    setMessage("Editando cliente registrado.")
+    setExternalClientIdError(null)
+    toast.info("Editando cliente registrado.")
   }
 
   const handleCancelEdit = () => {
@@ -150,47 +171,60 @@ export function ClientForm() {
     setDisplayName("")
     setClientKind("standalone")
     setIsActive(true)
-    setMessage(null)
+    setExternalClientIdError(null)
   }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setMessage(null)
+    setExternalClientIdError(null)
 
     if (isExternalClientIdRequired && !externalClientId.trim()) {
-      setMessage(
+      setExternalClientIdError(
         "El ID de cliente es obligatorio para clientes Asociados e Independientes."
       )
       return
     }
 
     setIsSubmitting(true)
-    const response = await fetch("/api/admin/clients", {
-      method: editingClientId ? "PATCH" : "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        id: editingClientId ?? undefined,
-        externalClientId: externalClientId.trim() ? Number(externalClientId) : null,
-        displayName,
-        clientKind,
-        isActive,
-      }),
-    })
+    const isEditing = Boolean(editingClientId)
+    const toastId = toast.loading(isEditing ? "Actualizando cliente..." : "Guardando cliente...")
 
-    if (!response.ok) {
-      setMessage(await getApiErrorMessage(response, "No fue posible guardar el cliente."))
+    try {
+      const response = await fetch("/api/admin/clients", {
+        method: editingClientId ? "PATCH" : "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: editingClientId ?? undefined,
+          externalClientId: externalClientId.trim() ? Number(externalClientId) : null,
+          displayName,
+          clientKind,
+          isActive,
+        }),
+      })
+
+      if (!response.ok) {
+        toast.error(await readApiErrorMessage(response, "No fue posible guardar el cliente."), {
+          id: toastId,
+        })
+        return
+      }
+
+      setEditingClientId(null)
+      setExternalClientId("")
+      setDisplayName("")
+      setClientKind("standalone")
+      setIsActive(true)
+      toast.success(isEditing ? "Cliente actualizado." : "Cliente guardado.", {
+        id: toastId,
+      })
+      await Promise.all([loadClients(), loadExternalClients(externalPage, externalSearch)])
+    } catch {
+      toast.error("No fue posible guardar el cliente en este momento.", {
+        id: toastId,
+      })
+    } finally {
       setIsSubmitting(false)
-      return
     }
-
-    setEditingClientId(null)
-    setExternalClientId("")
-    setDisplayName("")
-    setClientKind("standalone")
-    setIsActive(true)
-    setMessage(editingClientId ? "Cliente actualizado." : "Cliente guardado.")
-    await Promise.all([loadClients(), loadExternalClients(externalPage, externalSearch)])
-    setIsSubmitting(false)
   }
 
   return (
@@ -207,21 +241,26 @@ export function ClientForm() {
         <CardContent className="pt-5">
           <form onSubmit={handleSubmit}>
             <FieldGroup>
-              <Field>
+              <Field data-invalid={Boolean(externalClientIdError)}>
                 <FieldLabel htmlFor="externalClientId">ID de cliente</FieldLabel>
                 <Input
                   id="externalClientId"
                   inputMode="numeric"
                   disabled={isSubmitting}
                   value={externalClientId}
+                  aria-invalid={Boolean(externalClientIdError)}
                   className="bg-background"
-                  onChange={(event) => setExternalClientId(event.target.value)}
+                  onChange={(event) => {
+                    setExternalClientId(event.target.value)
+                    setExternalClientIdError(null)
+                  }}
                 />
                 <FieldDescription>
                   {isExternalClientIdRequired
                     ? "Identificador del cliente en el sistema de recargas."
                     : "Opcional para clientes principales que solo agrupan asociados."}
                 </FieldDescription>
+                <FieldError>{externalClientIdError}</FieldError>
               </Field>
               <Field>
                 <FieldLabel htmlFor="displayName">Nombre visible</FieldLabel>
@@ -287,11 +326,6 @@ export function ClientForm() {
                 >
                   Cancelar edición
                 </Button>
-              ) : null}
-              {message ? (
-                <p className="rounded-lg border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-                  {message}
-                </p>
               ) : null}
             </FieldGroup>
           </form>
@@ -482,11 +516,6 @@ export function ClientForm() {
       </Card>
     </div>
   )
-}
-
-const getApiErrorMessage = async (response: Response, fallback: string) => {
-  const payload = (await response.json().catch(() => null)) as { error?: string } | null
-  return payload?.error ?? fallback
 }
 
 const getClientKindLabel = (clientKind: ClientRecord["clientKind"]) => {

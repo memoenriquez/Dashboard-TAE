@@ -1,19 +1,19 @@
 "use client"
 
 import { useRouter, useSearchParams } from "next/navigation"
-import { FormEvent, useState } from "react"
+import { FormEvent, useEffect, useState } from "react"
+import { toast } from "sonner"
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Field,
-  FieldError,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { sanitizeInternalRedirectPath } from "@/lib/auth/redirect"
 import { buildPasswordResetRedirectUrl } from "@/features/auth/password-reset"
+import { getSupabaseAuthErrorMessage } from "@/lib/supabase/auth-error-message"
 import { createClient } from "@/lib/supabase/client"
 
 type LoginMode = "sign-in" | "password-reset"
@@ -23,14 +23,16 @@ export function LoginForm() {
   const searchParams = useSearchParams()
   const nextPath = sanitizeInternalRedirectPath(searchParams.get("next"))
   const [mode, setMode] = useState<LoginMode>("sign-in")
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isPending, setIsPending] = useState(false)
+
+  useEffect(() => {
+    if (searchParams.get("error") === "invalid_link") {
+      toast.error("El enlace no es válido o expiró. Solicita uno nuevo.")
+    }
+  }, [searchParams])
 
   const handleSignInSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setErrorMessage(null)
-    setSuccessMessage(null)
     setIsPending(true)
 
     const formData = new FormData(event.currentTarget)
@@ -38,15 +40,19 @@ export function LoginForm() {
     const password = String(formData.get("password") ?? "")
 
     const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    const { error } = await supabase.auth
+      .signInWithPassword({
+        email,
+        password,
+      })
+      .catch(() => ({
+        error: { message: "No se pudo conectar con Supabase." },
+      }))
 
     setIsPending(false)
 
     if (error) {
-      setErrorMessage(error.message)
+      toast.error(getSupabaseAuthErrorMessage(error, "No se pudo iniciar sesión."))
       return
     }
 
@@ -56,63 +62,46 @@ export function LoginForm() {
 
   const handlePasswordResetSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setErrorMessage(null)
-    setSuccessMessage(null)
     setIsPending(true)
 
     const formData = new FormData(event.currentTarget)
     const email = String(formData.get("email") ?? "")
     const supabase = createClient()
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: buildPasswordResetRedirectUrl(window.location.origin),
-    })
+    const { error } = await supabase.auth
+      .resetPasswordForEmail(email, {
+        redirectTo: buildPasswordResetRedirectUrl(window.location.origin),
+      })
+      .catch(() => ({
+        error: { message: "No se pudo conectar con Supabase." },
+      }))
 
     setIsPending(false)
 
     if (error) {
-      setErrorMessage(error.message)
+      toast.error(
+        getSupabaseAuthErrorMessage(error, "No se pudo enviar el correo.")
+      )
       return
     }
 
-    setSuccessMessage(
-      "Si el correo existe, recibirás instrucciones para restablecer tu contraseña."
-    )
+    toast.success("Si el correo existe, recibirás instrucciones para restablecer tu contraseña.")
   }
 
   const handleShowPasswordReset = () => {
     setMode("password-reset")
-    setErrorMessage(null)
-    setSuccessMessage(null)
   }
 
   const handleShowSignIn = () => {
     setMode("sign-in")
-    setErrorMessage(null)
-    setSuccessMessage(null)
   }
 
   if (mode === "password-reset") {
     return (
       <form className="flex flex-col gap-5" onSubmit={handlePasswordResetSubmit}>
-        {errorMessage ? (
-          <Alert variant="destructive">
-            <AlertTitle>No se pudo enviar el correo</AlertTitle>
-            <AlertDescription>{errorMessage}</AlertDescription>
-          </Alert>
-        ) : null}
-
-        {successMessage ? (
-          <Alert>
-            <AlertTitle>Revisa tu correo</AlertTitle>
-            <AlertDescription>{successMessage}</AlertDescription>
-          </Alert>
-        ) : null}
-
         <FieldGroup>
-          <Field data-invalid={Boolean(errorMessage)}>
+          <Field>
             <FieldLabel htmlFor="reset-email">Correo</FieldLabel>
             <Input
-              aria-invalid={Boolean(errorMessage)}
               autoComplete="email"
               className="bg-background"
               disabled={isPending}
@@ -122,7 +111,6 @@ export function LoginForm() {
               required
               type="email"
             />
-            <FieldError>{errorMessage}</FieldError>
           </Field>
         </FieldGroup>
 
@@ -145,18 +133,10 @@ export function LoginForm() {
 
   return (
     <form className="flex flex-col gap-5" onSubmit={handleSignInSubmit}>
-      {errorMessage ? (
-        <Alert variant="destructive">
-          <AlertTitle>No se pudo iniciar sesión</AlertTitle>
-          <AlertDescription>{errorMessage}</AlertDescription>
-        </Alert>
-      ) : null}
-
       <FieldGroup>
-        <Field data-invalid={Boolean(errorMessage)}>
+        <Field>
           <FieldLabel htmlFor="email">Correo</FieldLabel>
           <Input
-            aria-invalid={Boolean(errorMessage)}
             autoComplete="email"
             id="email"
             name="email"
@@ -167,10 +147,9 @@ export function LoginForm() {
           />
         </Field>
 
-        <Field data-invalid={Boolean(errorMessage)}>
+        <Field>
           <FieldLabel htmlFor="password">Contraseña</FieldLabel>
           <Input
-            aria-invalid={Boolean(errorMessage)}
             autoComplete="current-password"
             id="password"
             name="password"
@@ -178,7 +157,6 @@ export function LoginForm() {
             type="password"
             className="bg-background"
           />
-          <FieldError>{errorMessage}</FieldError>
         </Field>
       </FieldGroup>
 

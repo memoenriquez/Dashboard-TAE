@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -70,34 +70,41 @@ export function ProfileForm() {
   const [email, setEmail] = useState("")
   const [clientId, setClientId] = useState("")
   const [displayName, setDisplayName] = useState("")
-  const [message, setMessage] = useState<{
-    type: "success" | "error"
-    text: string
-  } | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isResendingProfileId, setIsResendingProfileId] = useState<string | null>(null)
 
   const loadData = async () => {
     setIsLoading(true)
-    const [profilesResponse, clientsResponse] = await Promise.all([
-      fetch("/api/admin/profiles"),
-      fetch("/api/admin/clients"),
-    ])
+    try {
+      const [profilesResponse, clientsResponse] = await Promise.all([
+        fetch("/api/admin/profiles"),
+        fetch("/api/admin/clients"),
+      ])
 
-    if (!profilesResponse.ok || !clientsResponse.ok) {
-      setMessage({ type: "error", text: "No fue posible cargar usuarios." })
+      if (!profilesResponse.ok) {
+        toast.error(
+          await readApiErrorMessage(profilesResponse, "No fue posible cargar usuarios.")
+        )
+        return
+      }
+
+      if (!clientsResponse.ok) {
+        toast.error(await readApiErrorMessage(clientsResponse, "No fue posible cargar clientes."))
+        return
+      }
+
+      const profilesPayload = (await profilesResponse.json()) as {
+        profiles: ProfileRecord[]
+      }
+      const clientsPayload = (await clientsResponse.json()) as { clients: ClientRecord[] }
+      setProfiles(profilesPayload.profiles)
+      setClients(clientsPayload.clients)
+    } catch {
+      toast.error("No fue posible cargar usuarios en este momento.")
+    } finally {
       setIsLoading(false)
-      return
     }
-
-    const profilesPayload = (await profilesResponse.json()) as {
-      profiles: ProfileRecord[]
-    }
-    const clientsPayload = (await clientsResponse.json()) as { clients: ClientRecord[] }
-    setProfiles(profilesPayload.profiles)
-    setClients(clientsPayload.clients)
-    setIsLoading(false)
   }
 
   useEffect(() => {
@@ -108,8 +115,10 @@ export function ProfileForm() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setMessage(null)
     setIsSubmitting(true)
+    const toastId = toast.loading(
+      editingProfile ? "Actualizando usuario..." : "Enviando invitación..."
+    )
 
     let response: Response
 
@@ -133,26 +142,26 @@ export function ProfileForm() {
         ),
       })
     } catch {
-      setMessage({
-        type: "error",
-        text: editingProfile
+      toast.error(
+        editingProfile
           ? "No fue posible actualizar el usuario en este momento."
           : "No fue posible enviar la invitación en este momento.",
-      })
+        { id: toastId }
+      )
       setIsSubmitting(false)
       return
     }
 
     if (!response.ok) {
-      setMessage({
-        type: "error",
-        text: await readApiErrorMessage(
+      toast.error(
+        await readApiErrorMessage(
           response,
           editingProfile
             ? "No fue posible actualizar el usuario."
             : "No fue posible enviar la invitación."
         ),
-      })
+        { id: toastId }
+      )
       setIsSubmitting(false)
       return
     }
@@ -161,12 +170,12 @@ export function ProfileForm() {
     setEmail("")
     setClientId("")
     setDisplayName("")
-    setMessage({
-      type: "success",
-      text: editingProfile
+    toast.success(
+      editingProfile
         ? "Usuario actualizado."
         : "Invitación enviada y usuario asignado al cliente.",
-    })
+      { id: toastId }
+    )
     await loadData()
     setIsSubmitting(false)
   }
@@ -176,7 +185,6 @@ export function ProfileForm() {
     setEmail("")
     setClientId(profile.clientId ?? "")
     setDisplayName(profile.displayName)
-    setMessage(null)
   }
 
   const handleCancelEdit = () => {
@@ -184,12 +192,13 @@ export function ProfileForm() {
     setEmail("")
     setClientId("")
     setDisplayName("")
-    setMessage(null)
   }
 
   const handleResendInvitation = async (profile: ProfileRecord) => {
-    setMessage(null)
     setIsResendingProfileId(profile.id)
+    const toastId = toast.loading(
+      `Reenviando invitación a ${profile.email ?? profile.displayName}...`
+    )
 
     let response: Response
 
@@ -200,29 +209,27 @@ export function ProfileForm() {
         body: JSON.stringify({ profileId: profile.id }),
       })
     } catch {
-      setMessage({
-        type: "error",
-        text: "No fue posible reenviar la invitación en este momento.",
+      toast.error("No fue posible reenviar la invitación en este momento.", {
+        id: toastId,
       })
       setIsResendingProfileId(null)
       return
     }
 
     if (!response.ok) {
-      setMessage({
-        type: "error",
-        text: await readApiErrorMessage(
+      toast.error(
+        await readApiErrorMessage(
           response,
           "No fue posible reenviar la invitación."
         ),
-      })
+        { id: toastId }
+      )
       setIsResendingProfileId(null)
       return
     }
 
-    setMessage({
-      type: "success",
-      text: `Invitación reenviada a ${profile.email ?? profile.displayName}.`,
+    toast.success(`Invitación reenviada a ${profile.email ?? profile.displayName}.`, {
+      id: toastId,
     })
     await loadData()
     setIsResendingProfileId(null)
@@ -348,16 +355,6 @@ export function ProfileForm() {
                 >
                   Cancelar edición
                 </Button>
-              ) : null}
-              {message ? (
-                <Alert variant={message.type === "error" ? "destructive" : "default"}>
-                  <AlertTitle>
-                    {message.type === "error"
-                      ? "No se pudo enviar la invitación"
-                      : "Invitación enviada"}
-                  </AlertTitle>
-                  <AlertDescription>{message.text}</AlertDescription>
-                </Alert>
               ) : null}
             </FieldGroup>
           </form>

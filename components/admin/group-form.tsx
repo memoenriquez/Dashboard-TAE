@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -35,6 +36,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { readApiErrorMessage } from "@/lib/api/client-error"
 
 interface GroupRecord {
   id: string
@@ -59,7 +61,6 @@ export function GroupForm() {
   const [displayName, setDisplayName] = useState("")
   const [selectedChildClientId, setSelectedChildClientId] = useState("")
   const [childClientIds, setChildClientIds] = useState<string[]>([])
-  const [message, setMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -77,22 +78,33 @@ export function GroupForm() {
 
   const loadData = async () => {
     setIsLoading(true)
-    const [groupsResponse, clientsResponse] = await Promise.all([
-      fetch("/api/admin/groups"),
-      fetch("/api/admin/clients"),
-    ])
+    try {
+      const [groupsResponse, clientsResponse] = await Promise.all([
+        fetch("/api/admin/groups"),
+        fetch("/api/admin/clients"),
+      ])
 
-    if (!groupsResponse.ok || !clientsResponse.ok) {
-      setMessage("No fue posible cargar grupos.")
+      if (!groupsResponse.ok) {
+        toast.error(await readApiErrorMessage(groupsResponse, "No fue posible cargar grupos."))
+        return
+      }
+
+      if (!clientsResponse.ok) {
+        toast.error(
+          await readApiErrorMessage(clientsResponse, "No fue posible cargar clientes.")
+        )
+        return
+      }
+
+      const groupsPayload = (await groupsResponse.json()) as { groups: GroupRecord[] }
+      const clientsPayload = (await clientsResponse.json()) as { clients: ClientRecord[] }
+      setGroups(groupsPayload.groups)
+      setClients(clientsPayload.clients)
+    } catch {
+      toast.error("No fue posible cargar grupos en este momento.")
+    } finally {
       setIsLoading(false)
-      return
     }
-
-    const groupsPayload = (await groupsResponse.json()) as { groups: GroupRecord[] }
-    const clientsPayload = (await clientsResponse.json()) as { clients: ClientRecord[] }
-    setGroups(groupsPayload.groups)
-    setClients(clientsPayload.clients)
-    setIsLoading(false)
   }
 
   useEffect(() => {
@@ -122,7 +134,7 @@ export function GroupForm() {
     setDisplayName(group.displayName)
     setSelectedChildClientId("")
     setChildClientIds(group.childClients.map((childClient) => childClient.id))
-    setMessage("Editando grupo de clientes.")
+    toast.info("Editando grupo de clientes.")
   }
 
   const handleCancelEdit = () => {
@@ -131,38 +143,49 @@ export function GroupForm() {
     setDisplayName("")
     setSelectedChildClientId("")
     setChildClientIds([])
-    setMessage(null)
   }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setMessage(null)
     setIsSubmitting(true)
-    const response = await fetch("/api/admin/groups", {
-      method: editingGroupId ? "PATCH" : "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        id: editingGroupId ?? undefined,
-        parentClientId,
-        displayName,
-        childClientIds,
-      }),
-    })
+    const isEditing = Boolean(editingGroupId)
+    const toastId = toast.loading(isEditing ? "Actualizando grupo..." : "Guardando grupo...")
 
-    if (!response.ok) {
-      setMessage(await getApiErrorMessage(response, "No fue posible guardar el grupo."))
+    try {
+      const response = await fetch("/api/admin/groups", {
+        method: editingGroupId ? "PATCH" : "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: editingGroupId ?? undefined,
+          parentClientId,
+          displayName,
+          childClientIds,
+        }),
+      })
+
+      if (!response.ok) {
+        toast.error(await readApiErrorMessage(response, "No fue posible guardar el grupo."), {
+          id: toastId,
+        })
+        return
+      }
+
+      setEditingGroupId(null)
+      setParentClientId("")
+      setDisplayName("")
+      setSelectedChildClientId("")
+      setChildClientIds([])
+      toast.success(isEditing ? "Grupo actualizado." : "Grupo guardado.", {
+        id: toastId,
+      })
+      await loadData()
+    } catch {
+      toast.error("No fue posible guardar el grupo en este momento.", {
+        id: toastId,
+      })
+    } finally {
       setIsSubmitting(false)
-      return
     }
-
-    setEditingGroupId(null)
-    setParentClientId("")
-    setDisplayName("")
-    setSelectedChildClientId("")
-    setChildClientIds([])
-    setMessage(editingGroupId ? "Grupo actualizado." : "Grupo guardado.")
-    await loadData()
-    setIsSubmitting(false)
   }
 
   return (
@@ -309,11 +332,6 @@ export function GroupForm() {
                   Cancelar edición
                 </Button>
               ) : null}
-              {message ? (
-                <p className="rounded-lg border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-                  {message}
-                </p>
-              ) : null}
             </FieldGroup>
           </form>
         </CardContent>
@@ -395,11 +413,6 @@ export function GroupForm() {
       </Card>
     </div>
   )
-}
-
-const getApiErrorMessage = async (response: Response, fallback: string) => {
-  const payload = (await response.json().catch(() => null)) as { error?: string } | null
-  return payload?.error ?? fallback
 }
 
 const getClientLabel = (clients: ClientRecord[], clientId: string) => {

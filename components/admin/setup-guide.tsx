@@ -2,11 +2,13 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { AdminSetupStatus } from "@/features/clients/types"
+import { readApiErrorMessage } from "@/lib/api/client-error"
 
 interface SetupStep {
   label: string
@@ -21,14 +23,24 @@ export function AdminSetupGuide() {
 
   useEffect(() => {
     queueMicrotask(async () => {
-      const response = await fetch("/api/admin/setup")
+      try {
+        const response = await fetch("/api/admin/setup")
 
-      if (!response.ok) {
-        return
+        if (!response.ok) {
+          toast.error(
+            await readApiErrorMessage(
+              response,
+              "No fue posible cargar el estado de configuración."
+            )
+          )
+          return
+        }
+
+        const payload = (await response.json()) as { setupStatus: AdminSetupStatus }
+        setSetupStatus(payload.setupStatus)
+      } catch {
+        toast.error("No fue posible cargar el estado de configuración.")
       }
-
-      const payload = (await response.json()) as { setupStatus: AdminSetupStatus }
-      setSetupStatus(payload.setupStatus)
     })
   }, [])
 

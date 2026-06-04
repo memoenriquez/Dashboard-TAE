@@ -29,5 +29,6 @@ export const GET = async (request: NextRequest) => {
 
   redirectTo.pathname = "/login"
   redirectTo.searchParams.set("next", "/dashboard")
+  redirectTo.searchParams.set("error", "invalid_link")
   return NextResponse.redirect(redirectTo)
 }

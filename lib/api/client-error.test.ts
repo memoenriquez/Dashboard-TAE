@@ -19,4 +19,11 @@ describe("readApiErrorMessage", () => {
     await expect(readApiErrorMessage(response, "No fue posible enviar la invitación."))
       .resolves.toBe("No fue posible enviar la invitación.")
   })
+
+  it("normalizes common API errors before showing them to users", async () => {
+    const response = Response.json({ error: "Unauthorized" }, { status: 401 })
+
+    await expect(readApiErrorMessage(response, "No fue posible consultar datos."))
+      .resolves.toBe("Tu sesión expiró. Vuelve a iniciar sesión.")
+  })
 })

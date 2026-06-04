@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -19,6 +20,7 @@ import {
   PaginationItem,
 } from "@/components/ui/pagination"
 import { Skeleton } from "@/components/ui/skeleton"
+import { readApiErrorMessage } from "@/lib/api/client-error"
 
 import { ExportButton } from "./export-button"
 import { FilterBar, type TransactionFilterState } from "./filter-bar"
@@ -82,17 +84,20 @@ export function TransactionDashboard({
       params.set("externalClientId", appliedFilters.externalClientId)
     }
 
-    const response = await fetch(`/api/transactions?${params.toString()}`)
+    try {
+      const response = await fetch(`/api/transactions?${params.toString()}`)
 
-    if (!response.ok) {
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null
-      setError(payload?.error ?? "No fue posible consultar transacciones.")
+      if (!response.ok) {
+        setError(await readApiErrorMessage(response, "No fue posible consultar transacciones."))
+        return
+      }
+
+      setData((await response.json()) as TransactionsResponse)
+    } catch {
+      setError("No fue posible consultar transacciones en este momento.")
+    } finally {
       setIsLoading(false)
-      return
     }
-
-    setData((await response.json()) as TransactionsResponse)
-    setIsLoading(false)
   }, [appliedFilters, page])
 
   useEffect(() => {
@@ -105,21 +110,35 @@ export function TransactionDashboard({
     setError(null)
     setDetail(transaction)
     setOpeningTicket(transaction.ticket)
-    const response = await fetch(
-      `/api/transactions/${encodeURIComponent(transaction.ticket)}`
-    )
+    const toastId = toast.loading("Actualizando detalle de transacción...")
 
-    if (!response.ok) {
-      setError(
-        "Se mostró el detalle disponible en la tabla, pero no fue posible actualizarlo en este momento."
+    try {
+      const response = await fetch(
+        `/api/transactions/${encodeURIComponent(transaction.ticket)}`
       )
-      setOpeningTicket(null)
-      return
-    }
 
-    const payload = (await response.json()) as { transaction: DashboardTransaction }
-    setDetail(payload.transaction)
-    setOpeningTicket(null)
+      if (!response.ok) {
+        toast.error(
+          await readApiErrorMessage(
+            response,
+            "Se mostró el detalle disponible en la tabla, pero no fue posible actualizarlo en este momento."
+          ),
+          { id: toastId }
+        )
+        return
+      }
+
+      const payload = (await response.json()) as { transaction: DashboardTransaction }
+      setDetail(payload.transaction)
+      toast.dismiss(toastId)
+    } catch {
+      toast.error(
+        "Se mostró el detalle disponible en la tabla, pero no fue posible actualizarlo en este momento.",
+        { id: toastId }
+      )
+    } finally {
+      setOpeningTicket(null)
+    }
   }
 
   const handleApplyFilters = () => {
