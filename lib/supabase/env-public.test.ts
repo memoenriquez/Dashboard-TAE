@@ -30,9 +30,46 @@ describe("Supabase environment module boundaries", () => {
     expect(readProjectFile("lib/supabase/admin.ts")).toContain(
       'from "./env-server"'
     )
+    expect(readProjectFile("lib/supabase/admin.ts")).toContain(
+      'import "server-only"'
+    )
     expect(readProjectFile("lib/supabase/env-server.ts")).toContain(
       'import "server-only"'
     )
+  })
+
+  it("limits admin client imports to trusted server API modules", () => {
+    const allowedAdminClientImporters = [
+      "app/api/_lib/dashboard-context.ts",
+      "app/api/admin/invitations/resend/route.ts",
+      "app/api/admin/invitations/route.ts",
+      "app/api/admin/profiles/route.ts",
+    ]
+    const projectFiles = [
+      "app/api/_lib/dashboard-context.ts",
+      "app/api/admin/clients/route.ts",
+      "app/api/admin/external-clients/route.ts",
+      "app/api/admin/groups/route.ts",
+      "app/api/admin/invitations/resend/route.ts",
+      "app/api/admin/invitations/route.ts",
+      "app/api/admin/profiles/route.ts",
+      "app/api/admin/setup/route.ts",
+      "app/api/transactions/[ticket]/route.ts",
+      "app/api/transactions/export/route.ts",
+      "app/api/transactions/route.ts",
+      "app/dashboard/admin/layout.tsx",
+      "app/dashboard/layout.tsx",
+      "components/dashboard/dashboard-nav.tsx",
+      "lib/supabase/client.ts",
+      "lib/supabase/server.ts",
+      "proxy.ts",
+    ]
+
+    const filesImportingAdminClient = projectFiles.filter((path) =>
+      readProjectFile(path).includes("@/lib/supabase/admin")
+    )
+
+    expect(filesImportingAdminClient).toEqual(allowedAdminClientImporters)
   })
 })
 

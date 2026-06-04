@@ -246,8 +246,11 @@ for select
 to authenticated
 using ((select private.is_internal_admin()));
 
--- Inserts should be performed by trusted server-side code using a secret key.
--- The secret key bypasses RLS, so no authenticated insert policy is defined.
+-- Inserts must be performed by trusted server-side code using a secret key.
+-- Transaction detail/export routes should authorize the user with a session client first,
+-- then write audit_events through the server-only trusted audit writer.
+-- The secret key bypasses RLS, so no authenticated insert policy is defined; do not
+-- add a broad authenticated INSERT policy because users could forge audit records.
 
 -- Trusted server-side admin code uses this RPC to replace group membership
 -- atomically. It is intentionally not executable by browser roles.

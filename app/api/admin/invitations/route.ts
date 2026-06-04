@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 
 import { assertInternalAdminContext } from "../../_lib/dashboard-context"
 import { readJsonObject } from "../../_lib/request-body"
-import { withApiErrorHandling } from "../../_lib/route"
+import { withApiErrorHandling } from "../../_lib/api-route"
 
 export const dynamic = "force-dynamic"
 

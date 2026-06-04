@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { DashboardValidationError } from "./errors"
-import { withApiErrorHandling } from "./route"
+import { withApiErrorHandling } from "./api-route"
 
 describe("withApiErrorHandling", () => {
   it("returns successful handler responses unchanged", async () => {

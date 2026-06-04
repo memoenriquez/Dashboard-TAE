@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { assertInternalAdminContext } from "../../_lib/dashboard-context"
 import { DashboardValidationError } from "../../_lib/errors"
 import { readJsonObject } from "../../_lib/request-body"
-import { withApiErrorHandling } from "../../_lib/route"
+import { withApiErrorHandling } from "../../_lib/api-route"
 
 export const dynamic = "force-dynamic"
 
@@ -61,8 +61,20 @@ export const POST = withApiErrorHandling(async (request: Request) => {
 
     const clientId = typeof body.clientId === "string" ? body.clientId : null
 
-    if (!isInternalAdmin && !clientId) {
-      throw new DashboardValidationError("Client profiles must be linked to a client")
+    if (!isInternalAdmin) {
+      if (!clientId) {
+        throw new DashboardValidationError("Client profiles must be linked to a client")
+      }
+
+      const client = await context.metadataRepository.getClientById(clientId)
+
+      if (!client) {
+        throw new DashboardValidationError("Selected client does not exist")
+      }
+
+      if (!client.isActive) {
+        throw new DashboardValidationError("Selected client is inactive")
+      }
     }
 
     const profile = await context.metadataRepository.upsertProfile({

@@ -3,7 +3,7 @@ import { applyExternalClientFilterToScope } from "@/features/clients/scope"
 import { createSqlServerTransactionRepository } from "@/lib/external-db/transactions-repository"
 
 import { resolveTransactionRequestContext } from "../_lib/dashboard-context"
-import { withApiErrorHandling } from "../_lib/route"
+import { withApiErrorHandling } from "../_lib/api-route"
 import {
   parsePositiveInteger,
   parseTransactionSearchParams,

@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { assertInternalAdminContext } from "../../../_lib/dashboard-context"
 import { DashboardValidationError } from "../../../_lib/errors"
 import { readJsonObject } from "../../../_lib/request-body"
-import { withApiErrorHandling } from "../../../_lib/route"
+import { withApiErrorHandling } from "../../../_lib/api-route"
 
 export const dynamic = "force-dynamic"
 

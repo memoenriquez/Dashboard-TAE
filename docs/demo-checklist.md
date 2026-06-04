@@ -8,9 +8,12 @@ Use this checklist to prepare the local prototype demo.
 - Configure Supabase Auth redirect URLs to allow
   `http://localhost:3000/auth/accept-invite` for local invitation acceptance.
 - Enable leaked password protection in Supabase Auth before sharing the demo
-  outside the local prototype.
+  outside the local prototype, then confirm Supabase Security Advisor no longer
+  reports `auth_leaked_password_protection`.
 - Confirm `public.profiles` has exactly one `is_internal_admin = true` row for
   the demo owner.
+- Confirm `public.audit_events` has no authenticated `insert` policy; inserts
+  should come only from trusted server-side code using `SUPABASE_SECRET_KEY`.
 - Confirm local `.env` has:
   - `NEXT_PUBLIC_SUPABASE_URL`
   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`

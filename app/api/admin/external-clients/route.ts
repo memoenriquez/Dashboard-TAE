@@ -1,7 +1,7 @@
 import { listExternalClients } from "@/lib/external-db/external-clients-repository"
 
 import { assertInternalAdminContext } from "../../_lib/dashboard-context"
-import { withApiErrorHandling } from "../../_lib/route"
+import { withApiErrorHandling } from "../../_lib/api-route"
 import { parsePositiveInteger } from "../../_lib/transaction-params"
 
 export const dynamic = "force-dynamic"

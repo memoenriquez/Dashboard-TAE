@@ -1,10 +1,12 @@
-import { recordAuditEvent } from "@/features/audit/audit-service"
 import { applyExternalClientFilterToScope } from "@/features/clients/scope"
 import { createTransactionsCsv } from "@/features/transactions/transaction-service"
 import { createSqlServerTransactionRepository } from "@/lib/external-db/transactions-repository"
 
-import { resolveTransactionRequestContext } from "../../_lib/dashboard-context"
-import { withApiErrorHandling } from "../../_lib/route"
+import {
+  recordTrustedAuditEvent,
+  resolveTransactionRequestContext,
+} from "../../_lib/dashboard-context"
+import { withApiErrorHandling } from "../../_lib/api-route"
 import { parseTransactionSearchParams } from "../../_lib/transaction-params"
 
 export const dynamic = "force-dynamic"
@@ -23,9 +25,8 @@ export const GET = withApiErrorHandling(async (request: Request) => {
       filters,
     })
 
-    await recordAuditEvent({
-      repository: context.metadataRepository,
-      event: {
+    try {
+      await recordTrustedAuditEvent({
         actorUserId: context.user.id,
         actorClientId: context.resolvedProfile.profile.clientId,
         eventType: "csv_exported",
@@ -37,8 +38,10 @@ export const GET = withApiErrorHandling(async (request: Request) => {
           status: filters.status,
           externalClientId: filters.externalClientId ?? null,
         },
-      },
-    })
+      })
+    } catch {
+      // CSV access has already been authorized; audit outages are non-blocking.
+    }
 
     return new Response(csv, {
       headers: {

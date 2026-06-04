@@ -1,6 +1,7 @@
 import "server-only"
 
 import { recordAuditEvent } from "@/features/audit/audit-service"
+import type { AuditEventInput } from "@/features/audit/types"
 import { DashboardAccessDeniedError } from "@/features/auth/errors"
 import { resolveCurrentProfile } from "@/features/auth/profile"
 import type { ResolvedCurrentProfile } from "@/features/auth/types"
@@ -63,6 +64,19 @@ export const resolveTransactionRequestContext =
       scope,
     }
   }
+
+export const recordTrustedAuditEvent = async (event: AuditEventInput): Promise<void> => {
+  const metadataRepository = createDashboardMetadataRepository(createAdminClient())
+
+  try {
+    await recordAuditEvent({
+      repository: metadataRepository,
+      event,
+    })
+  } catch {
+    // Authorized reads/exports should not fail solely because audit storage is unavailable.
+  }
+}
 
 export const assertInternalAdminContext = async (): Promise<DashboardRequestContext> => {
   const context = await resolveDashboardMetadataContext()

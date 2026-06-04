@@ -1,5 +1,5 @@
 import { assertInternalAdminContext } from "../../_lib/dashboard-context"
-import { withApiErrorHandling } from "../../_lib/route"
+import { withApiErrorHandling } from "../../_lib/api-route"
 
 export const dynamic = "force-dynamic"
 
