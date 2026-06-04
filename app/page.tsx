@@ -1,42 +1,13 @@
 import {
   ArrowRightIcon,
-  DatabaseIcon,
   LayersIcon,
-  LockKeyholeIcon,
-  ShieldCheckIcon,
 } from "lucide-react";
+import Image from "next/image";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 
 export default function Home() {
-  const readinessItems = [
-    {
-      label: "Inicio",
-      value: "Con tu cuenta",
-    },
-    {
-      label: "Transacciones",
-      value: "Consulta y filtros",
-    },
-    {
-      label: "Clientes",
-      value: "Los asignados a tu cuenta",
-    },
-    {
-      label: "Reportes",
-      value: "Detalle y CSV",
-    },
-  ];
-
   return (
     <main className="min-h-dvh overflow-hidden bg-background">
       <section className="mx-auto flex min-h-dvh w-full max-w-7xl flex-col justify-center gap-10 px-6 py-12 lg:px-8">
@@ -88,51 +59,16 @@ export default function Home() {
           <div className="relative">
             <div className="absolute -top-8 right-8 size-24 rounded-full bg-brand-accent/15 blur-2xl" />
             <div className="absolute -bottom-8 left-6 size-32 rounded-full bg-primary/12 blur-3xl" />
-            <Card className="relative overflow-hidden border-primary/10 bg-card/95 shadow-xl shadow-primary/5">
-              <CardHeader className="border-b bg-muted/30">
-                <CardTitle>Todo en un solo panel</CardTitle>
-                <CardDescription>
-                  Consulta transacciones, revisa detalles, exporta CSV y
-                  configura usuarios.
-                </CardDescription>
-                <CardAction>
-                  <ShieldCheckIcon data-icon="inline-start" />
-                </CardAction>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-5 p-5">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {readinessItems.map((item) => (
-                    <div
-                      className="rounded-xl border bg-background px-3 py-3"
-                      key={item.label}
-                    >
-                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        {item.label}
-                      </p>
-                      <p className="mt-1 text-sm font-medium">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 sm:grid-cols-[auto_1fr]">
-                  <div className="flex size-10 items-center justify-center rounded-lg bg-brand-accent/15 text-brand-accent-foreground">
-                    <DatabaseIcon data-icon="inline-start" />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <p className="font-medium">Información lista para revisar</p>
-                    <p className="text-sm text-muted-foreground">
-                      Encuentra el historial de recargas, consulta cada detalle y
-                      descarga reportes sin salir del dashboard.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <LockKeyholeIcon data-icon="inline-start" />
-                  Resultados claros para tomar decisiones más rápido.
-                </div>
-              </CardContent>
-            </Card>
+            <div className="relative flex min-h-[360px] items-center justify-center rounded-3xl border border-primary/10 bg-card/80 p-10 shadow-xl shadow-primary/5 backdrop-blur">
+              <Image
+                alt="Logo Dashboard TAE"
+                className="h-auto w-full max-w-sm object-contain"
+                height={180}
+                priority
+                src="/logo/logo.png"
+                width={420}
+              />
+            </div>
           </div>
         </div>
       </section>
