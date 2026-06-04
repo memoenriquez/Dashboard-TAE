@@ -7,6 +7,9 @@ describe("resolveAuthConfirmRedirectPath", () => {
     expect(resolveAuthConfirmRedirectPath("/auth/accept-invite")).toBe(
       "/auth/accept-invite"
     )
+    expect(resolveAuthConfirmRedirectPath("/auth/reset-password")).toBe(
+      "/auth/reset-password"
+    )
   })
 
   it("falls back to the dashboard for external redirect paths", () => {

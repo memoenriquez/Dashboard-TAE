@@ -8,17 +8,21 @@ export const dynamic = "force-dynamic"
 
 export const GET = async (request: NextRequest) => {
   const { searchParams } = new URL(request.url)
+  const code = searchParams.get("code")
   const tokenHash = searchParams.get("token_hash")
   const type = searchParams.get("type") as EmailOtpType | null
   const nextPath = resolveAuthConfirmRedirectPath(searchParams.get("next"))
   const redirectTo = request.nextUrl.clone()
 
-  if (tokenHash && type) {
+  if ((tokenHash && type) || code) {
     const supabase = await createClient()
-    const { error } = await supabase.auth.verifyOtp({
-      token_hash: tokenHash,
-      type,
-    })
+    const { error } =
+      tokenHash && type
+        ? await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type,
+          })
+        : await supabase.auth.exchangeCodeForSession(code ?? "")
 
     if (!error) {
       redirectTo.pathname = nextPath
@@ -28,6 +32,7 @@ export const GET = async (request: NextRequest) => {
   }
 
   redirectTo.pathname = "/login"
+  redirectTo.search = ""
   redirectTo.searchParams.set("next", "/dashboard")
   redirectTo.searchParams.set("error", "invalid_link")
   return NextResponse.redirect(redirectTo)
