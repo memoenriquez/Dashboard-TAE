@@ -67,6 +67,65 @@ describe("listTransactions", () => {
       ],
     })
   })
+
+  it("loads rows and KPIs without unnecessary sequential orchestration", async () => {
+    const events: string[] = []
+    const releases: {
+      rows?: () => void
+      kpis?: () => void
+    } = {}
+    let markRowsStarted: () => void
+    const rowsStarted = new Promise<void>((resolve) => {
+      markRowsStarted = resolve
+    })
+    const repository: TransactionRepository = {
+      listTransactions: async () => {
+        events.push("rows-started")
+        markRowsStarted()
+        await new Promise<void>((release) => {
+          releases.rows = release
+        })
+        return []
+      },
+      getTransactionKpis: async () => {
+        events.push("kpis-started")
+        await new Promise<void>((release) => {
+          releases.kpis = release
+        })
+        return {
+          transactionCount: 0,
+          soldAmount: 0,
+        }
+      },
+      getTransactionDetail: async () => null,
+    }
+
+    const result = listTransactions({
+      repository,
+      scope: { type: "global" },
+      filters: {
+        from: new Date("2026-01-01T00:00:00.000Z"),
+        to: new Date("2026-01-31T23:59:59.999Z"),
+        status: "all",
+        phoneNumber: null,
+        operatorName: "Telcel",
+        reference: null,
+      },
+      page: 1,
+      pageSize: 25,
+    })
+
+    await rowsStarted
+
+    expect(events).toEqual(["rows-started", "kpis-started"])
+    if (!releases.rows || !releases.kpis) {
+      throw new Error("Expected both repository calls to be waiting")
+    }
+
+    releases.rows()
+    releases.kpis()
+    await result
+  })
 })
 
 describe("getTransactionDetail", () => {
@@ -117,5 +176,41 @@ describe("createTransactionsCsv", () => {
     ).resolves.toContain(
       "ticket,fecha,estado,operador,producto,telefono,monto_vendido,cliente_visible,codigo_respuesta,mensaje_respuesta,referencia_api"
     )
+  })
+
+  it("neutralizes spreadsheet formulas in exported values", async () => {
+    const repository: TransactionRepository = {
+      listTransactions: async () => [
+        createTransaction({
+          ticket: "=CMD",
+          visibleClientName: "+Cliente",
+          responseMessage: "-error",
+          apiReference: "@ref",
+        }),
+      ],
+      getTransactionKpis: async () => ({
+        transactionCount: 1,
+        soldAmount: 100,
+      }),
+      getTransactionDetail: async () => null,
+    }
+
+    const csv = await createTransactionsCsv({
+      repository,
+      scope: { type: "global" },
+      filters: {
+        from: new Date("2026-01-01T00:00:00.000Z"),
+        to: new Date("2026-01-31T23:59:59.999Z"),
+        status: "all",
+        phoneNumber: null,
+        operatorName: "Telcel",
+        reference: null,
+      },
+    })
+
+    expect(csv).toContain("'=CMD")
+    expect(csv).toContain("'+Cliente")
+    expect(csv).toContain("'-error")
+    expect(csv).toContain("'@ref")
   })
 })

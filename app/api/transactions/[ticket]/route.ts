@@ -2,8 +2,8 @@ import { recordAuditEvent } from "@/features/audit/audit-service"
 import { getTransactionDetail } from "@/features/transactions/transaction-service"
 import { createSqlServerTransactionRepository } from "@/lib/external-db/transactions-repository"
 
-import { resolveDashboardRequestContext } from "../../_lib/dashboard-context"
-import { toApiErrorResponse } from "../../_lib/errors"
+import { resolveTransactionRequestContext } from "../../_lib/dashboard-context"
+import { withApiErrorHandling } from "../../_lib/route"
 
 export const dynamic = "force-dynamic"
 
@@ -13,13 +13,10 @@ interface TransactionDetailRouteContext {
   }>
 }
 
-export const GET = async (
-  _request: Request,
-  context: TransactionDetailRouteContext
-) => {
-  try {
+export const GET = withApiErrorHandling(
+  async (_request: Request, context: TransactionDetailRouteContext) => {
     const { ticket } = await context.params
-    const dashboardContext = await resolveDashboardRequestContext()
+    const dashboardContext = await resolveTransactionRequestContext()
     const transaction = await getTransactionDetail({
       repository: createSqlServerTransactionRepository(),
       scope: dashboardContext.scope,
@@ -45,7 +42,5 @@ export const GET = async (
     })
 
     return Response.json({ transaction })
-  } catch (error) {
-    return toApiErrorResponse(error)
   }
-}
+)

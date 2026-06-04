@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { DashboardValidationError } from "./errors"
 import { parseTransactionSearchParams } from "./transaction-params"
 
 describe("parseTransactionSearchParams", () => {
@@ -24,7 +25,7 @@ describe("parseTransactionSearchParams", () => {
           status: "error",
         })
       )
-    ).toThrow("Invalid transaction status")
+    ).toThrow(DashboardValidationError)
   })
 
   it("parses a requested external client id filter", () => {
@@ -48,6 +49,6 @@ describe("parseTransactionSearchParams", () => {
           externalClientId: "abc",
         })
       )
-    ).toThrow("Invalid external client id")
+    ).toThrow(DashboardValidationError)
   })
 })

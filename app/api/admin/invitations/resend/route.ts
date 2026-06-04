@@ -1,27 +1,20 @@
-import {
-  DashboardInvitationAuthError,
-  DashboardInvitationValidationError,
-  resendDashboardInvitation,
-} from "@/features/auth/invitations"
+import { resendDashboardInvitation } from "@/features/auth/invitations"
 import { createAdminClient } from "@/lib/supabase/admin"
 
-import { requireInternalAdminContext } from "../../../_lib/dashboard-context"
-import { toApiErrorResponse } from "../../../_lib/errors"
+import { assertInternalAdminContext } from "../../../_lib/dashboard-context"
+import { DashboardValidationError } from "../../../_lib/errors"
+import { readJsonObject } from "../../../_lib/request-body"
+import { withApiErrorHandling } from "../../../_lib/route"
 
 export const dynamic = "force-dynamic"
 
-export const POST = async (request: Request) => {
-  try {
-    const { context, response } = await requireInternalAdminContext()
+export const POST = withApiErrorHandling(async (request: Request) => {
+    const context = await assertInternalAdminContext()
 
-    if (response) {
-      return response
-    }
+    const body = await readJsonObject(request)
 
-    const body = (await request.json()) as Partial<{ profileId: string }>
-
-    if (!body.profileId) {
-      return Response.json({ error: "Missing profile id" }, { status: 400 })
+    if (typeof body.profileId !== "string" || !body.profileId) {
+      throw new DashboardValidationError("Missing profile id")
     }
 
     const profile = await context.metadataRepository.getProfileByUserId(
@@ -78,18 +71,7 @@ export const POST = async (request: Request) => {
     })
 
     return Response.json(result)
-  } catch (error) {
-    if (error instanceof DashboardInvitationValidationError) {
-      return Response.json({ error: error.message }, { status: 400 })
-    }
-
-    if (error instanceof DashboardInvitationAuthError) {
-      return Response.json({ error: error.message }, { status: 502 })
-    }
-
-    return toApiErrorResponse(error)
-  }
-}
+})
 
 const getAppUrl = (request: Request) =>
   process.env.APP_URL ??

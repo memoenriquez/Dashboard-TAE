@@ -1,52 +1,33 @@
 import { recordAuditEvent } from "@/features/audit/audit-service"
-import {
-  AdminValidationError,
-  parseAdminGroupInput,
-} from "@/features/clients/admin-validation"
+import { parseAdminGroupInput } from "@/features/clients/admin-validation"
 
-import { requireInternalAdminContext } from "../../_lib/dashboard-context"
-import { toApiErrorResponse } from "../../_lib/errors"
+import { assertInternalAdminContext } from "../../_lib/dashboard-context"
+import { DashboardValidationError } from "../../_lib/errors"
+import { readJsonObject } from "../../_lib/request-body"
+import { withApiErrorHandling } from "../../_lib/route"
 
 export const dynamic = "force-dynamic"
 
-export const GET = async () => {
-  try {
-    const { context, response } = await requireInternalAdminContext()
-
-    if (response) {
-      return response
-    }
+export const GET = withApiErrorHandling(async () => {
+    const context = await assertInternalAdminContext()
 
     return Response.json({ groups: await context.metadataRepository.listGroupsWithMembers() })
-  } catch (error) {
-    return toApiErrorResponse(error)
-  }
-}
+})
 
-export const PATCH = async (request: Request) => {
-  try {
-    const { context, response } = await requireInternalAdminContext()
+export const PATCH = withApiErrorHandling(async (request: Request) => {
+    const context = await assertInternalAdminContext()
 
-    if (response) {
-      return response
-    }
+    const body = await readJsonObject(request)
 
-    const body = (await request.json()) as Partial<{
-      id: string
-      parentClientId: string
-      displayName: string
-      childClientIds: string[]
-    }>
-
-    if (!body.id) {
-      return Response.json({ error: "Missing group id" }, { status: 400 })
+    if (typeof body.id !== "string" || !body.id) {
+      throw new DashboardValidationError("Missing group id")
     }
 
     const input = parseAdminGroupInput(body)
 
     const parentClient = await context.metadataRepository.getClientById(input.parentClientId)
     if (!parentClient || parentClient.clientKind !== "parent") {
-      return Response.json({ error: "Group parent must be a parent client" }, { status: 400 })
+      throw new DashboardValidationError("Group parent must be a parent client")
     }
 
     const childClients = await Promise.all(
@@ -60,10 +41,7 @@ export const PATCH = async (request: Request) => {
         (client) => !client || client.clientKind !== "child" || !client.isActive
       )
     ) {
-      return Response.json(
-        { error: "Group members must be active child clients" },
-        { status: 400 }
-      )
+      throw new DashboardValidationError("Group members must be active child clients")
     }
 
     const group = await context.metadataRepository.updateGroup({
@@ -89,33 +67,17 @@ export const PATCH = async (request: Request) => {
     })
 
     return Response.json({ group })
-  } catch (error) {
-    if (error instanceof AdminValidationError) {
-      return Response.json({ error: error.message }, { status: 400 })
-    }
+})
 
-    return toApiErrorResponse(error)
-  }
-}
+export const POST = withApiErrorHandling(async (request: Request) => {
+    const context = await assertInternalAdminContext()
 
-export const POST = async (request: Request) => {
-  try {
-    const { context, response } = await requireInternalAdminContext()
-
-    if (response) {
-      return response
-    }
-
-    const body = (await request.json()) as Partial<{
-      parentClientId: string
-      displayName: string
-      childClientIds: string[]
-    }>
+    const body = await readJsonObject(request)
     const input = parseAdminGroupInput(body)
 
     const parentClient = await context.metadataRepository.getClientById(input.parentClientId)
     if (!parentClient || parentClient.clientKind !== "parent") {
-      return Response.json({ error: "Group parent must be a parent client" }, { status: 400 })
+      throw new DashboardValidationError("Group parent must be a parent client")
     }
 
     const childClients = await Promise.all(
@@ -129,10 +91,7 @@ export const POST = async (request: Request) => {
         (client) => !client || client.clientKind !== "child" || !client.isActive
       )
     ) {
-      return Response.json(
-        { error: "Group members must be active child clients" },
-        { status: 400 }
-      )
+      throw new DashboardValidationError("Group members must be active child clients")
     }
 
     const group = await context.metadataRepository.createGroup({
@@ -153,11 +112,4 @@ export const POST = async (request: Request) => {
     })
 
     return Response.json({ group }, { status: 201 })
-  } catch (error) {
-    if (error instanceof AdminValidationError) {
-      return Response.json({ error: error.message }, { status: 400 })
-    }
-
-    return toApiErrorResponse(error)
-  }
-}
+})

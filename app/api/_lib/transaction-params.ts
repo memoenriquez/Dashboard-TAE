@@ -1,5 +1,7 @@
 import { resolveTransactionFilters } from "@/features/transactions/filters"
 
+import { DashboardValidationError } from "./errors"
+
 export const getTransactionQueryDefaults = () => ({
   defaultDays: Number(process.env.TRANSACTION_QUERY_DEFAULT_DAYS ?? 7),
   maxDays: Number(process.env.TRANSACTION_QUERY_MAX_DAYS ?? 90),
@@ -14,16 +16,28 @@ export const parseTransactionSearchParams = (searchParams: URLSearchParams) => {
     ? new Date(String(searchParams.get("from")))
     : new Date(to.getTime() - defaultDays * 86_400_000)
 
-  return resolveTransactionFilters({
-    from,
-    to,
-    status: parseStatus(searchParams.get("status")),
-    phoneNumber: searchParams.get("phoneNumber"),
-    operatorName: "Telcel",
-    reference: searchParams.get("reference"),
-    externalClientId: parseExternalClientId(searchParams.get("externalClientId")),
-    maxDays,
-  })
+  try {
+    return resolveTransactionFilters({
+      from,
+      to,
+      status: parseStatus(searchParams.get("status")),
+      phoneNumber: searchParams.get("phoneNumber"),
+      operatorName: "Telcel",
+      reference: searchParams.get("reference"),
+      externalClientId: parseExternalClientId(searchParams.get("externalClientId")),
+      maxDays,
+    })
+  } catch (error) {
+    if (error instanceof DashboardValidationError) {
+      throw error
+    }
+
+    if (error instanceof Error) {
+      throw new DashboardValidationError(error.message)
+    }
+
+    throw error
+  }
 }
 
 export const parsePositiveInteger = (
@@ -50,7 +64,7 @@ const parseStatus = (status: string | null) => {
     return status
   }
 
-  throw new Error("Invalid transaction status")
+  throw new DashboardValidationError("Invalid transaction status")
 }
 
 const parseExternalClientId = (externalClientId: string | null) => {
@@ -61,7 +75,7 @@ const parseExternalClientId = (externalClientId: string | null) => {
   const value = Number(externalClientId)
 
   if (!Number.isInteger(value) || value < 1) {
-    throw new Error("Invalid external client id")
+    throw new DashboardValidationError("Invalid external client id")
   }
 
   return value

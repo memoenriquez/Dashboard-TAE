@@ -1,22 +1,15 @@
 import { recordAuditEvent } from "@/features/audit/audit-service"
-import {
-  AdminValidationError,
-  parseAdminClientInput,
-} from "@/features/clients/admin-validation"
-import type { Client } from "@/features/clients/types"
+import { parseAdminClientInput } from "@/features/clients/admin-validation"
 
-import { requireInternalAdminContext } from "../../_lib/dashboard-context"
-import { toApiErrorResponse } from "../../_lib/errors"
+import { assertInternalAdminContext } from "../../_lib/dashboard-context"
+import { DashboardValidationError } from "../../_lib/errors"
+import { readJsonObject } from "../../_lib/request-body"
+import { withApiErrorHandling } from "../../_lib/route"
 
 export const dynamic = "force-dynamic"
 
-export const GET = async () => {
-  try {
-    const { context, response } = await requireInternalAdminContext()
-
-    if (response) {
-      return response
-    }
+export const GET = withApiErrorHandling(async () => {
+    const context = await assertInternalAdminContext()
 
     const [clients, relationshipSummaries] = await Promise.all([
       context.metadataRepository.listClients(),
@@ -29,25 +22,12 @@ export const GET = async () => {
         relationshipSummary: relationshipSummaries[client.id],
       })),
     })
-  } catch (error) {
-    return toApiErrorResponse(error)
-  }
-}
+})
 
-export const POST = async (request: Request) => {
-  try {
-    const { context, response } = await requireInternalAdminContext()
+export const POST = withApiErrorHandling(async (request: Request) => {
+    const context = await assertInternalAdminContext()
 
-    if (response) {
-      return response
-    }
-
-    const body = (await request.json()) as Partial<{
-      externalClientId: number | null
-      displayName: string
-      clientKind: Client["clientKind"]
-      isActive: boolean
-    }>
+    const body = await readJsonObject(request)
     const input = parseAdminClientInput(body)
 
     const client = await context.metadataRepository.createClient({
@@ -69,33 +49,15 @@ export const POST = async (request: Request) => {
     })
 
     return Response.json({ client }, { status: 201 })
-  } catch (error) {
-    if (error instanceof AdminValidationError) {
-      return Response.json({ error: error.message }, { status: 400 })
-    }
+})
 
-    return toApiErrorResponse(error)
-  }
-}
+export const PATCH = withApiErrorHandling(async (request: Request) => {
+    const context = await assertInternalAdminContext()
 
-export const PATCH = async (request: Request) => {
-  try {
-    const { context, response } = await requireInternalAdminContext()
+    const body = await readJsonObject(request)
 
-    if (response) {
-      return response
-    }
-
-    const body = (await request.json()) as Partial<{
-      id: string
-      externalClientId: number | null
-      displayName: string
-      clientKind: Client["clientKind"]
-      isActive: boolean
-    }>
-
-    if (!body.id) {
-      return Response.json({ error: "Missing client id" }, { status: 400 })
+    if (typeof body.id !== "string" || !body.id) {
+      throw new DashboardValidationError("Missing client id")
     }
 
     const input = parseAdminClientInput(body)
@@ -119,11 +81,4 @@ export const PATCH = async (request: Request) => {
     })
 
     return Response.json({ client })
-  } catch (error) {
-    if (error instanceof AdminValidationError) {
-      return Response.json({ error: error.message }, { status: 400 })
-    }
-
-    return toApiErrorResponse(error)
-  }
-}
+})

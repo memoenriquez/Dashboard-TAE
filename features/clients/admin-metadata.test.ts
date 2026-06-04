@@ -8,27 +8,35 @@ import type { Client, ClientGroupWithMembers, Profile } from "./types"
 
 const baseTimestamp = "2026-01-01T00:00:00.000Z"
 
-const createClient = (overrides: Partial<Client> & Pick<Client, "id" | "clientKind">): Client => ({
-  id: overrides.id,
-  externalClientId: 100,
-  displayName: `Cliente ${overrides.id}`,
-  clientKind: overrides.clientKind,
-  isActive: true,
-  createdAt: baseTimestamp,
-  updatedAt: baseTimestamp,
-  ...overrides,
-})
+const createClient = (overrides: Partial<Client> & Pick<Client, "id" | "clientKind">): Client => {
+  const { id, clientKind, ...rest } = overrides
+
+  return {
+    id,
+    externalClientId: 100,
+    displayName: `Cliente ${id}`,
+    clientKind,
+    isActive: true,
+    createdAt: baseTimestamp,
+    updatedAt: baseTimestamp,
+    ...rest,
+  }
+}
 
 const createGroup = (
   overrides: Partial<ClientGroupWithMembers> & Pick<ClientGroupWithMembers, "id" | "parentClientId">
-): ClientGroupWithMembers => ({
-  id: overrides.id,
-  parentClientId: overrides.parentClientId,
-  displayName: `Grupo ${overrides.id}`,
-  childClients: [],
-  createdAt: baseTimestamp,
-  ...overrides,
-})
+): ClientGroupWithMembers => {
+  const { id, parentClientId, ...rest } = overrides
+
+  return {
+    id,
+    parentClientId,
+    displayName: `Grupo ${id}`,
+    childClients: [],
+    createdAt: baseTimestamp,
+    ...rest,
+  }
+}
 
 const createProfile = (overrides: Partial<Profile>): Profile => ({
   id: "profile-1",

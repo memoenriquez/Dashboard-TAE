@@ -2,18 +2,15 @@ import { recordAuditEvent } from "@/features/audit/audit-service"
 import { getDashboardInvitationStatus } from "@/features/auth/invitations"
 import { createAdminClient } from "@/lib/supabase/admin"
 
-import { requireInternalAdminContext } from "../../_lib/dashboard-context"
-import { toApiErrorResponse } from "../../_lib/errors"
+import { assertInternalAdminContext } from "../../_lib/dashboard-context"
+import { DashboardValidationError } from "../../_lib/errors"
+import { readJsonObject } from "../../_lib/request-body"
+import { withApiErrorHandling } from "../../_lib/route"
 
 export const dynamic = "force-dynamic"
 
-export const GET = async () => {
-  try {
-    const { context, response } = await requireInternalAdminContext()
-
-    if (response) {
-      return response
-    }
+export const GET = withApiErrorHandling(async () => {
+    const context = await assertInternalAdminContext()
 
     const [profiles, authUsersById] = await Promise.all([
       context.metadataRepository.listProfiles(),
@@ -39,53 +36,38 @@ export const GET = async () => {
         }
       }),
     })
-  } catch (error) {
-    return toApiErrorResponse(error)
-  }
-}
+})
 
-export const POST = async (request: Request) => {
-  try {
-    const { context, response } = await requireInternalAdminContext()
+export const POST = withApiErrorHandling(async (request: Request) => {
+    const context = await assertInternalAdminContext()
 
-    if (response) {
-      return response
-    }
+    const body = await readJsonObject(request)
 
-    const body = (await request.json()) as Partial<{
-      id: string
-      clientId: string | null
-      isInternalAdmin: boolean
-      displayName: string
-    }>
-
-    if (!body.id || !body.displayName) {
-      return Response.json({ error: "Missing required profile fields" }, { status: 400 })
+    if (typeof body.id !== "string" || typeof body.displayName !== "string") {
+      throw new DashboardValidationError("Missing required profile fields")
     }
 
     const isCurrentAdminProfile =
       body.id === context.user.id && context.resolvedProfile.profile.isInternalAdmin
     const isInternalAdmin = isCurrentAdminProfile
       ? true
-      : body.isInternalAdmin ?? false
+      : body.isInternalAdmin === true
 
     if (isInternalAdmin && body.id !== context.user.id) {
-      return Response.json(
-        { error: "Only the current dashboard owner can be an internal admin" },
-        { status: 400 }
+      throw new DashboardValidationError(
+        "Only the current dashboard owner can be an internal admin"
       )
     }
 
-    if (!isInternalAdmin && !body.clientId) {
-      return Response.json(
-        { error: "Client profiles must be linked to a client" },
-        { status: 400 }
-      )
+    const clientId = typeof body.clientId === "string" ? body.clientId : null
+
+    if (!isInternalAdmin && !clientId) {
+      throw new DashboardValidationError("Client profiles must be linked to a client")
     }
 
     const profile = await context.metadataRepository.upsertProfile({
       id: body.id,
-      clientId: body.clientId ?? null,
+      clientId,
       isInternalAdmin,
       displayName: body.displayName,
     })
@@ -102,10 +84,7 @@ export const POST = async (request: Request) => {
     })
 
     return Response.json({ profile }, { status: 201 })
-  } catch (error) {
-    return toApiErrorResponse(error)
-  }
-}
+})
 
 const listAuthUsersById = async () => {
   const adminClient = createAdminClient()

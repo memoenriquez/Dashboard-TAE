@@ -47,8 +47,10 @@ export interface ListTransactionsResult {
 export const listTransactions = async (
   input: ListTransactionsInput
 ): Promise<ListTransactionsResult> => {
-  const rows = await input.repository.listTransactions(input)
-  const kpis = await input.repository.getTransactionKpis(input)
+  const [rows, kpis] = await Promise.all([
+    input.repository.listTransactions(input),
+    input.repository.getTransactionKpis(input),
+  ])
 
   return {
     rows,
@@ -119,11 +121,19 @@ const formatCsvRow = (row: NormalizedTransactionRecord) =>
     .join(",")
 
 const escapeCsvValue = (value: string | number) => {
-  const stringValue = String(value)
+  const stringValue = neutralizeSpreadsheetFormula(String(value))
 
   if (!/[",\n\r]/.test(stringValue)) {
     return stringValue
   }
 
   return `"${stringValue.replaceAll("\"", "\"\"")}"`
+}
+
+const neutralizeSpreadsheetFormula = (value: string) => {
+  if (/^[=+\-@\t\r]/.test(value)) {
+    return `'${value}`
+  }
+
+  return value
 }

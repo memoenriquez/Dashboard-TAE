@@ -1,18 +1,10 @@
-import { requireInternalAdminContext } from "../../_lib/dashboard-context"
-import { toApiErrorResponse } from "../../_lib/errors"
+import { assertInternalAdminContext } from "../../_lib/dashboard-context"
+import { withApiErrorHandling } from "../../_lib/route"
 
 export const dynamic = "force-dynamic"
 
-export const GET = async () => {
-  try {
-    const { context, response } = await requireInternalAdminContext()
-
-    if (response) {
-      return response
-    }
+export const GET = withApiErrorHandling(async () => {
+    const context = await assertInternalAdminContext()
 
     return Response.json({ setupStatus: await context.metadataRepository.getSetupStatus() })
-  } catch (error) {
-    return toApiErrorResponse(error)
-  }
-}
+})

@@ -3,8 +3,8 @@ import { notFound } from "next/navigation"
 import { AdminSetupGuide } from "@/components/admin/setup-guide"
 import { resolveCurrentDashboardUiAccess } from "@/features/auth/profile"
 import { requireCurrentUser } from "@/lib/auth/session"
-import { createAdminClient } from "@/lib/supabase/admin"
 import { createDashboardMetadataRepository } from "@/lib/supabase/metadata-repository"
+import { createClient } from "@/lib/supabase/server"
 
 export default async function AdminLayout({
   children,
@@ -12,7 +12,7 @@ export default async function AdminLayout({
   children: React.ReactNode
 }) {
   const user = await requireCurrentUser()
-  const metadataRepository = createDashboardMetadataRepository(createAdminClient())
+  const metadataRepository = createDashboardMetadataRepository(await createClient())
   const { isInternalAdmin } = await resolveCurrentDashboardUiAccess({
     userId: user.id,
     repository: metadataRepository,

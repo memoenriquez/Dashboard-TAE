@@ -248,3 +248,31 @@ using ((select private.is_internal_admin()));
 
 -- Inserts should be performed by trusted server-side code using a secret key.
 -- The secret key bypasses RLS, so no authenticated insert policy is defined.
+
+-- Trusted server-side admin code uses this RPC to replace group membership
+-- atomically. It is intentionally not executable by browser roles.
+create or replace function public.replace_group_members(
+  group_id uuid,
+  child_client_ids uuid[]
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from public.client_group_members
+  where client_group_members.group_id = $1;
+
+  if coalesce(array_length($2, 1), 0) = 0 then
+    return;
+  end if;
+
+  insert into public.client_group_members (group_id, child_client_id)
+  select $1, child_client_id
+  from unnest($2) as child_client_id;
+end;
+$$;
+
+revoke all on function public.replace_group_members(uuid, uuid[]) from public, anon, authenticated;
+grant execute on function public.replace_group_members(uuid, uuid[]) to service_role;

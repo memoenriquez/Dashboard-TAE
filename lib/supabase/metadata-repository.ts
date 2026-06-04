@@ -323,30 +323,13 @@ export const createDashboardMetadataRepository = (
     return mapClientGroup(data as JsonRecord)
   },
   replaceGroupMembers: async (input) => {
-    const { error: deleteError } = await supabase
-      .from("client_group_members")
-      .delete()
-      .eq("group_id", input.groupId)
+    const { error } = await supabase.rpc("replace_group_members", {
+      group_id: input.groupId,
+      child_client_ids: input.childClientIds,
+    })
 
-    if (deleteError) {
-      throw deleteError
-    }
-
-    if (input.childClientIds.length === 0) {
-      return
-    }
-
-    const { error: insertError } = await supabase
-      .from("client_group_members")
-      .insert(
-        input.childClientIds.map((childClientId) => ({
-          group_id: input.groupId,
-          child_client_id: childClientId,
-        }))
-      )
-
-    if (insertError) {
-      throw insertError
+    if (error) {
+      throw error
     }
   },
   createGroup: async (input) => {

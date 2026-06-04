@@ -2,8 +2,8 @@ import { listTransactions } from "@/features/transactions/transaction-service"
 import { applyExternalClientFilterToScope } from "@/features/clients/scope"
 import { createSqlServerTransactionRepository } from "@/lib/external-db/transactions-repository"
 
-import { resolveDashboardRequestContext } from "../_lib/dashboard-context"
-import { toApiErrorResponse } from "../_lib/errors"
+import { resolveTransactionRequestContext } from "../_lib/dashboard-context"
+import { withApiErrorHandling } from "../_lib/route"
 import {
   parsePositiveInteger,
   parseTransactionSearchParams,
@@ -11,10 +11,9 @@ import {
 
 export const dynamic = "force-dynamic"
 
-export const GET = async (request: Request) => {
-  try {
+export const GET = withApiErrorHandling(async (request: Request) => {
     const url = new URL(request.url)
-    const context = await resolveDashboardRequestContext()
+    const context = await resolveTransactionRequestContext()
     const filters = parseTransactionSearchParams(url.searchParams)
     const scope = applyExternalClientFilterToScope(
       context.scope,
@@ -31,7 +30,4 @@ export const GET = async (request: Request) => {
     })
 
     return Response.json(result)
-  } catch (error) {
-    return toApiErrorResponse(error)
-  }
-}
+})

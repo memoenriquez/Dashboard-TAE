@@ -6,8 +6,8 @@ import {
 } from "@/components/ui/sidebar"
 import { resolveCurrentDashboardUiAccess } from "@/features/auth/profile"
 import { requireCurrentUser } from "@/lib/auth/session"
-import { createAdminClient } from "@/lib/supabase/admin"
 import { createDashboardMetadataRepository } from "@/lib/supabase/metadata-repository"
+import { createClient } from "@/lib/supabase/server"
 
 export default async function DashboardLayout({
   children,
@@ -15,7 +15,7 @@ export default async function DashboardLayout({
   children: React.ReactNode
 }) {
   const user = await requireCurrentUser()
-  const metadataRepository = createDashboardMetadataRepository(createAdminClient())
+  const metadataRepository = createDashboardMetadataRepository(await createClient())
   const { isInternalAdmin } = await resolveCurrentDashboardUiAccess({
     userId: user.id,
     repository: metadataRepository,

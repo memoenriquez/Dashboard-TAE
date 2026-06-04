@@ -1,28 +1,16 @@
-import {
-  DashboardInvitationAuthError,
-  DashboardInvitationValidationError,
-  inviteDashboardUser,
-} from "@/features/auth/invitations"
+import { inviteDashboardUser } from "@/features/auth/invitations"
 import { createAdminClient } from "@/lib/supabase/admin"
 
-import { requireInternalAdminContext } from "../../_lib/dashboard-context"
-import { toApiErrorResponse } from "../../_lib/errors"
+import { assertInternalAdminContext } from "../../_lib/dashboard-context"
+import { readJsonObject } from "../../_lib/request-body"
+import { withApiErrorHandling } from "../../_lib/route"
 
 export const dynamic = "force-dynamic"
 
-export const POST = async (request: Request) => {
-  try {
-    const { context, response } = await requireInternalAdminContext()
+export const POST = withApiErrorHandling(async (request: Request) => {
+    const context = await assertInternalAdminContext()
 
-    if (response) {
-      return response
-    }
-
-    const body = (await request.json()) as Partial<{
-      email: string
-      displayName: string
-      clientId: string
-    }>
+    const body = await readJsonObject(request)
     const adminClient = createAdminClient()
 
     const profile = await inviteDashboardUser({
@@ -49,25 +37,14 @@ export const POST = async (request: Request) => {
       actorClientId: context.resolvedProfile.profile.clientId,
       appUrl: getAppUrl(request),
       input: {
-        email: body.email ?? "",
-        displayName: body.displayName ?? "",
-        clientId: body.clientId ?? "",
+        email: typeof body.email === "string" ? body.email : "",
+        displayName: typeof body.displayName === "string" ? body.displayName : "",
+        clientId: typeof body.clientId === "string" ? body.clientId : "",
       },
     })
 
     return Response.json({ profile }, { status: 201 })
-  } catch (error) {
-    if (error instanceof DashboardInvitationValidationError) {
-      return Response.json({ error: error.message }, { status: 400 })
-    }
-
-    if (error instanceof DashboardInvitationAuthError) {
-      return Response.json({ error: error.message }, { status: 502 })
-    }
-
-    return toApiErrorResponse(error)
-  }
-}
+})
 
 const getAppUrl = (request: Request) =>
   process.env.APP_URL ??

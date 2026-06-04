@@ -20,20 +20,14 @@ export interface AdminGroupInput {
   childClientIds: string[]
 }
 
-export const parseAdminClientInput = (body: Partial<{
-  externalClientId: number | string | null
-  displayName: string
-  clientKind: Client["clientKind"]
-  isActive: boolean
-}>): AdminClientInput => {
-  const displayName = body.displayName?.trim()
+export const parseAdminClientInput = (
+  body: Record<string, unknown>
+): AdminClientInput => {
+  const displayName = typeof body.displayName === "string" ? body.displayName.trim() : ""
+  const clientKind = parseClientKind(body.clientKind)
 
-  if (!displayName || !body.clientKind) {
+  if (!displayName || !clientKind) {
     throw new AdminValidationError("Missing required client fields")
-  }
-
-  if (!["parent", "child", "standalone"].includes(body.clientKind)) {
-    throw new AdminValidationError("Invalid client kind")
   }
 
   const externalClientId =
@@ -56,25 +50,25 @@ export const parseAdminClientInput = (body: Partial<{
   return {
     externalClientId,
     displayName,
-    clientKind: body.clientKind,
-    isActive: body.isActive,
+    clientKind,
+    isActive: typeof body.isActive === "boolean" ? body.isActive : undefined,
   }
 }
 
-export const parseAdminGroupInput = (body: Partial<{
-  parentClientId: string
-  displayName: string
-  childClientIds: string[]
-}>): AdminGroupInput => {
-  const parentClientId = body.parentClientId?.trim()
-  const displayName = body.displayName?.trim()
+export const parseAdminGroupInput = (
+  body: Record<string, unknown>
+): AdminGroupInput => {
+  const parentClientId =
+    typeof body.parentClientId === "string" ? body.parentClientId.trim() : ""
+  const displayName = typeof body.displayName === "string" ? body.displayName.trim() : ""
 
   if (!parentClientId || !displayName) {
     throw new AdminValidationError("Missing required group fields")
   }
 
-  const childClientIds = body.childClientIds ?? []
+  const childClientIds = Array.isArray(body.childClientIds) ? body.childClientIds : []
   const normalizedChildClientIds = childClientIds
+    .filter((childClientId): childClientId is string => typeof childClientId === "string")
     .map((childClientId) => childClientId.trim())
     .filter(Boolean)
 
@@ -87,4 +81,20 @@ export const parseAdminGroupInput = (body: Partial<{
     displayName,
     childClientIds: normalizedChildClientIds,
   }
+}
+
+const parseClientKind = (clientKind: unknown): Client["clientKind"] | null => {
+  if (
+    clientKind === "parent" ||
+    clientKind === "child" ||
+    clientKind === "standalone"
+  ) {
+    return clientKind
+  }
+
+  if (clientKind) {
+    throw new AdminValidationError("Invalid client kind")
+  }
+
+  return null
 }

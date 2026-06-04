@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest"
 
 import { DashboardAccessDeniedError } from "@/features/auth/errors"
 
-import { DashboardUnauthorizedError, toApiErrorResponse } from "./errors"
+import {
+  DashboardUnauthorizedError,
+  DashboardValidationError,
+  toApiErrorResponse,
+} from "./errors"
 
 describe("toApiErrorResponse", () => {
   it("returns 401 for unauthenticated dashboard requests", async () => {
@@ -17,6 +21,13 @@ describe("toApiErrorResponse", () => {
 
     expect(response.status).toBe(403)
     await expect(response.json()).resolves.toEqual({ error: "Forbidden" })
+  })
+
+  it("returns 400 for dashboard validation errors", async () => {
+    const response = toApiErrorResponse(new DashboardValidationError("Invalid filters"))
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({ error: "Invalid filters" })
   })
 
   it("does not expose internal error messages for unexpected errors", async () => {

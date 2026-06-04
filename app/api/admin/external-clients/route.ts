@@ -1,18 +1,13 @@
 import { listExternalClients } from "@/lib/external-db/external-clients-repository"
 
-import { requireInternalAdminContext } from "../../_lib/dashboard-context"
-import { toApiErrorResponse } from "../../_lib/errors"
+import { assertInternalAdminContext } from "../../_lib/dashboard-context"
+import { withApiErrorHandling } from "../../_lib/route"
 import { parsePositiveInteger } from "../../_lib/transaction-params"
 
 export const dynamic = "force-dynamic"
 
-export const GET = async (request: Request) => {
-  try {
-    const { context, response } = await requireInternalAdminContext()
-
-    if (response) {
-      return response
-    }
+export const GET = withApiErrorHandling(async (request: Request) => {
+    const context = await assertInternalAdminContext()
 
     const url = new URL(request.url)
     const page = parsePositiveInteger(url.searchParams, "page", 1, 10_000)
@@ -37,7 +32,4 @@ export const GET = async (request: Request) => {
         hasMore: externalClients.length === pageSize,
       },
     })
-  } catch (error) {
-    return toApiErrorResponse(error)
-  }
-}
+})

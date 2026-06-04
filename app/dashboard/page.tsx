@@ -2,8 +2,8 @@ import { TransactionDashboard } from "@/components/dashboard/transaction-dashboa
 import { resolveCurrentProfile } from "@/features/auth/profile"
 import { listAvailableTransactionClients } from "@/features/clients/scope"
 import { requireCurrentUser } from "@/lib/auth/session"
-import { createAdminClient } from "@/lib/supabase/admin"
 import { createDashboardMetadataRepository } from "@/lib/supabase/metadata-repository"
+import { createClient } from "@/lib/supabase/server"
 
 export const dynamic = "force-dynamic"
 
@@ -11,7 +11,7 @@ const toDateInputValue = (date: Date) => date.toISOString().slice(0, 10)
 
 export default async function DashboardPage() {
   const user = await requireCurrentUser()
-  const metadataRepository = createDashboardMetadataRepository(createAdminClient())
+  const metadataRepository = createDashboardMetadataRepository(await createClient())
   const resolvedProfile = await resolveCurrentProfile({
     userId: user.id,
     repository: metadataRepository,

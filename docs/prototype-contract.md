@@ -132,7 +132,9 @@ TRANSACTION_QUERY_MAX_DAYS=90
 Rules:
 
 - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` may be used by browser-safe Supabase clients.
-- `SUPABASE_SECRET_KEY` is server-only and must never be exposed to the browser.
+- `SUPABASE_SECRET_KEY` is server-only, bypasses RLS, and must never be exposed to the browser.
+- User-scoped reads should use the SSR client created with the publishable key and the request cookies so RLS remains the default enforcement layer.
+- Secret-key clients are reserved for trusted server code after authorization has already verified the actor, such as internal-admin mutations, Supabase Auth Admin calls, and privileged RPCs.
 - Legacy fallback variables are allowed only if the Supabase project does not yet use the new key model: `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`.
 - External database credentials are server-only.
 - The external database user must be read-only.
