@@ -1,4 +1,4 @@
-import { CircleDollarSignIcon, ReceiptTextIcon } from "lucide-react"
+import { CircleDollarSignIcon, ReceiptTextIcon, WalletIcon } from "lucide-react"
 
 import {
   Card,
@@ -9,14 +9,25 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 
+import type { AccountBalanceResponse } from "./types"
+
 interface KpiCardsProps {
   transactionCount: number
   soldAmount: number
+  accountBalance: AccountBalanceResponse | null
+  accountBalanceStatus: "error" | "loading" | "ready" | "requires-selection"
+  accountBalanceMessage?: string
 }
 
-export function KpiCards({ transactionCount, soldAmount }: KpiCardsProps) {
+export function KpiCards({
+  transactionCount,
+  soldAmount,
+  accountBalance,
+  accountBalanceStatus,
+  accountBalanceMessage,
+}: KpiCardsProps) {
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="grid gap-3 md:grid-cols-3">
       <Card className="shadow-sm">
         <CardHeader className="pb-2">
           <CardTitle>Número de transacciones</CardTitle>
@@ -54,6 +65,67 @@ export function KpiCards({ transactionCount, soldAmount }: KpiCardsProps) {
           </p>
         </CardContent>
       </Card>
+      <Card className="shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle>Saldo actual</CardTitle>
+          <CardDescription>Disponible en la cuenta seleccionada.</CardDescription>
+          <CardAction>
+            <WalletIcon data-icon="inline-start" />
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          {accountBalanceStatus === "ready" && accountBalance ? (
+            <>
+              <p className="text-3xl font-semibold tracking-tight tabular-nums">
+                {accountBalance.balance.toLocaleString("es-MX", {
+                  style: "currency",
+                  currency: "MXN",
+                })}
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                CuentaID {accountBalance.externalClientId}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium text-foreground">
+                {getAccountBalanceFallbackLabel(accountBalanceStatus)}
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {accountBalanceMessage ?? getAccountBalanceFallbackMessage(accountBalanceStatus)}
+              </p>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
+}
+
+const getAccountBalanceFallbackLabel = (
+  status: KpiCardsProps["accountBalanceStatus"]
+) => {
+  if (status === "loading") {
+    return "Consultando saldo..."
+  }
+
+  if (status === "error") {
+    return "Saldo no disponible"
+  }
+
+  return "Selecciona una cuenta"
+}
+
+const getAccountBalanceFallbackMessage = (
+  status: KpiCardsProps["accountBalanceStatus"]
+) => {
+  if (status === "loading") {
+    return "La consulta no depende del rango de fechas."
+  }
+
+  if (status === "error") {
+    return "Intenta consultar nuevamente."
+  }
+
+  return "El saldo no se suma en vistas consolidadas."
 }

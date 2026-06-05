@@ -1,6 +1,6 @@
 # Dashboard de Transacciones de Tiempo Aire
 
-Este contexto define el lenguaje de dominio para un dashboard donde clientes revisan transacciones de tiempo aire originadas via API. El dashboard no es la fuente de verdad de las transacciones; observa una base transaccional externa y usa su propia base para usuarios, permisos y alcance de consulta.
+Este contexto define el lenguaje de dominio para un dashboard donde clientes revisan transacciones de tiempo aire originadas via API. El dashboard no es la fuente de verdad de las transacciones; consulta la API TAE y usa su propia base para usuarios, permisos y alcance de consulta.
 
 ## Language
 
@@ -13,24 +13,20 @@ Registro de una operacion de recarga o venta de tiempo aire consultable desde la
 _Avoid_: orden, compra, movimiento
 
 **Fuente Transaccional Externa**:
-Base de datos existente que ya transacciona via API y conserva la verdad sobre las transacciones de tiempo aire.
+Servicio externo que conserva la verdad sobre las transacciones de tiempo aire.
 _Avoid_: base del dashboard, copia local
 
-**Tabla de Recargas**:
-Tabla `sales_recargas` de la fuente externa que conserva los registros de transacciones de tiempo aire.
+**Listado de Transacciones TAE**:
+Respuesta `getTransactionsList` de la fuente externa que conserva los registros consultables de transacciones de tiempo aire.
 _Avoid_: tabla de estado, tabla de usuarios
 
 **Cuenta Externa**:
-Registro `cuenta` de la fuente externa que representa la cuenta comercial asociada a transacciones.
+Registro `cuentaID` de la fuente externa que representa la cuenta comercial asociada a transacciones.
 _Avoid_: usuario del dashboard, perfil Supabase
 
-**Catalogo SKU**:
-Tabla `sku_items` de la fuente externa usada para enriquecer el SKU con nombre de producto y monto nominal.
-_Avoid_: fuente de transacciones
-
 **Servicio API TAE**:
-API externa que actualmente origina operaciones de tiempo aire y escribe resultados en la fuente transaccional externa.
-_Avoid_: fuente directa del dashboard, contrato de UI
+API externa que origina operaciones de tiempo aire y expone endpoints de consulta para el dashboard.
+_Avoid_: contrato de UI
 
 **Base del Dashboard**:
 Base de datos propia del dashboard usada para gestionar usuarios, clientes, grupos y permisos.
@@ -168,9 +164,9 @@ _Avoid_: error silencioso
 Estado de la vista cuando la fuente transaccional externa falla, tarda demasiado o no puede responder de forma completa.
 _Avoid_: tabla vacia, resultado parcial
 
-**Backup Local de Fuente Externa**:
-Copia local de la fuente transaccional externa usada para desarrollar y validar el prototipo sin operar contra produccion.
-_Avoid_: nueva fuente de verdad, copia editable
+**Integracion TAE Server-Side**:
+Lectura de la API TAE desde backend propio para mantener credenciales fuera del navegador y aplicar alcance por CuentaID.
+_Avoid_: llamada directa desde browser, scope confiado al cliente
 
 **Rango de Consulta**:
 Periodo de fechas que el usuario selecciona para consultar transacciones, con un maximo interactivo de 90 dias.
@@ -197,7 +193,7 @@ _Avoid_: producto completo, analitica avanzada
 - Un **Usuario** pertenece a un **Cliente**.
 - Todos los **Usuarios** de un mismo **Cliente** tienen los mismos permisos funcionales en el MVP.
 - Un **Cliente** tiene un **External Client ID** usado para filtrar la **Fuente Transaccional Externa**.
-- El **External Client ID** corresponde a `sales_recargas.cuentaid` y referencia una **Cuenta Externa**.
+- El **External Client ID** corresponde a `cuentaID` de la API TAE y referencia una **Cuenta Externa**.
 - Un **Administrador Interno** crea clientes, grupos y usuarios; el MVP no ofrece alta self-service.
 - Un **Administrador Interno** puede consultar transacciones de cualquier cliente, pero no modifica transacciones externas.
 - La **Gestion Operativa de Supabase** se realiza desde el Dashboard de Supabase para crear tablas, aplicar politicas y configurar autenticacion.
@@ -209,13 +205,13 @@ _Avoid_: producto completo, analitica avanzada
 - El **Cliente Visible** se muestra en tabla, filtros y **Exportacion CSV** cuando el usuario puede consultar mas de un cliente.
 - Una **Transaccion de Tiempo Aire** pertenece a exactamente un **External Client ID** en la fuente externa.
 - Una **Transaccion de Tiempo Aire** tiene estado **Transaccion Exitosa** o **Transaccion Fallida**.
-- La **Transaccion Exitosa** se deriva cuando `sales_recargas.codresp = '0'`.
-- La **Transaccion Fallida** se deriva cuando `sales_recargas.codresp <> '0'`.
+- La **Transaccion Exitosa** se deriva cuando `codigoRespuesta = '0'`.
+- La **Transaccion Fallida** se deriva cuando `codigoRespuesta <> '0'`.
 - Una **Transaccion Fallida** cuenta para **Numero de Transacciones**, pero no suma **Monto Vendido**, **Saldo Consumido** ni **Comision**.
 - El **Registro de Transaccion Normalizado** desacopla la experiencia del dashboard del esquema real de la fuente externa.
-- El **Registro de Transaccion Normalizado** se alimenta principalmente desde la **Tabla de Recargas** y se enriquece con **Cuenta Externa** y **Catalogo SKU**.
-- El **Dashboard** consulta la **Fuente Transaccional Externa** mediante backend propio con credenciales de solo lectura.
-- Durante el prototipo, el **Dashboard** consulta un **Backup Local de Fuente Externa** con credenciales de solo lectura.
+- El **Registro de Transaccion Normalizado** se alimenta principalmente desde `getTransactionsList`.
+- El **Dashboard** consulta la **Fuente Transaccional Externa** mediante backend propio con `ApiKey` server-only.
+- Durante el prototipo, el **Dashboard** consulta la API TAE desde Route Handlers de Next.js.
 - La **Base del Dashboard** no almacena la verdad de las transacciones; almacena usuarios, clientes, grupos y permisos.
 - La **Base del Dashboard** representa clientes, usuarios/perfiles, grupos de clientes y miembros de grupo como conceptos separados.
 - El **Rango de Consulta** es obligatorio, inicia por defecto en los ultimos 7 dias y no debe exceder 90 dias en consultas interactivas.
@@ -226,27 +222,26 @@ _Avoid_: producto completo, analitica avanzada
 - El unico **Operador** del MVP es Telcel; no hay catalogo multioperador en el primer prototipo.
 - Los filtros MVP son rango de fecha, estado, cliente visible, numero telefonico exacto, operador Telcel y **Referencia Transaccional**.
 - La tabla MVP muestra fecha/hora, estado, operador Telcel, producto, **Numero Telefonico**, **Monto Vendido**, **Cliente Visible** y **Referencia Transaccional**.
-- La **Referencia Transaccional** principal viene de `sales_recargas.ticket`.
-- La **Referencia API** viene de `sales_recargas.tokentransid` o `sales_recargas.trequestid` y se usa para diagnostico.
-- El **Servicio API TAE** publica el flujo `getUserTransaction` -> `doTransaction` -> `checkTransaction`; ese flujo da contexto diagnostico, pero el dashboard MVP consulta la **Tabla de Recargas** ya persistida.
-- El `codigoRespuesta` publicado por el **Servicio API TAE** corresponde conceptualmente al **Codigo de Respuesta** persistido como `sales_recargas.codresp`; el mapeo del dashboard debe seguir usando el nombre confirmado en la base externa.
+- La **Referencia Transaccional** principal viene de `ticket`.
+- La **Referencia API** viene de `tokenTransaction` y se usa para diagnostico.
+- El **Servicio API TAE** publica el flujo `getUserTransaction` -> `doTransaction` -> `checkTransaction`; ese flujo da contexto diagnostico, pero el dashboard MVP consulta `getTransactionsList`.
+- El `codigoRespuesta` publicado por el **Servicio API TAE** es la fuente del **Codigo de Respuesta** normalizado.
 - El **Servicio API TAE** publica `codigoRespuesta = "0"` como exito, `codigoRespuesta = "3"` como fracaso, y codigos `1`, `2`, `4`, `5`, `6`, `7`, `8`, `9` para estados o errores tecnicos de consulta; el MVP conserva solo **Transaccion Exitosa** y **Transaccion Fallida** como estados de negocio del dashboard.
 - Cuando el **Codigo de Respuesta** indica fracaso, el **Codigo de Mensaje** puede explicar detalles como saldo insuficiente, telefono no valido, error de transmision, activacion no permitida para la region, monto no valido, credito no disponible o mantenimiento en curso.
 - `success` y `message` de la respuesta HTTP del **Servicio API TAE** son envoltura tecnica de la API; no reemplazan el estado normalizado del dashboard.
 - El endpoint de saldo del **Servicio API TAE** describe balance actual de cuenta, no monto consumido por transaccion; por eso no habilita **Saldo Consumido** como KPI MVP.
-- La **Respuesta de Proveedor** visible en detalle usa `sales_recargas.descrip`; si viene vacio o nulo, usa `sales_recargas.mensajenativo`; si ambos faltan, queda como no disponible.
-- El **Numero Telefonico** viene de `sales_recargas.telefono`.
-- El **Monto Vendido** viene de `sales_recargas.monto`.
-- El producto base viene de `sales_recargas.SKU` y puede enriquecerse con `sku_items.Nombre` y `sku_items.monto`.
-- El **Cliente Visible** debe preferir `cuenta.nombrenegocio` cuando exista; si no existe, usar `cuenta.razonsocial`; nombres personales de `cuenta` son fallback operativo.
-- `sales_recargas.descbalance` puede indicar si se desconto balance, pero no representa un monto financiero.
+- La **Respuesta de Proveedor** visible en detalle usa `descripcion`; si falta, queda como no disponible.
+- El **Numero Telefonico** viene de `telefono`.
+- El **Monto Vendido** viene de `monto`.
+- El producto base viene de `sku` y puede enriquecerse con `producto`.
+- El **Cliente Visible** debe preferir `nombreNegocio` cuando exista; si no existe, usar `razonSocial`.
 - **Saldo Consumido** y **Comision** no se muestran en KPIs ni columnas del MVP; quedan como metricas futuras hasta tener fuente confiable.
 - No existen reversos ni reembolsos en el flujo actual del MVP.
 - La tabla usa **Pagina de Resultados** ordenada por fecha/hora descendente; los KPIs no se calculan desde la pagina visible.
 - Los KPIs se calculan sobre todas las transacciones que cumplen filtros, rango y **Alcance de Consulta**.
 - El detalle de transaccion muestra los campos de tabla mas timestamps, **Referencia Transaccional**, **Respuesta de Proveedor** y cliente asociado.
 - La **Exportacion CSV** respeta exactamente los filtros activos, el alcance permitido y el maximo de 90 dias.
-- La **Auditoria Minima** del MVP registra exportaciones CSV, apertura de detalle de transaccion, cambios de permisos o mapeos, y accesos de **Administrador Interno**.
+- La **Auditoria Minima** del MVP registra exportaciones CSV, cambios de permisos o mapeos, y accesos de **Administrador Interno**.
 - Cada accion dentro de la **Auditoria Minima** produce un **Evento de Auditoria**.
 - La **Auditoria Minima** no registra listados normales para evitar ruido operativo excesivo.
 - El MVP permite **Numero Telefonico** completo en tabla, detalle y **Exportacion CSV** con **Auditoria Minima** sobre los eventos sensibles.
@@ -255,8 +250,7 @@ _Avoid_: producto completo, analitica avanzada
 - El **MVP** incluye login, permisos por cliente o grupo, vista principal, filtros, KPIs de **Numero de Transacciones** y **Monto Vendido**, tabla paginada, detalle, **Exportacion CSV**, **Auditoria Minima** y manejo de errores.
 - El primer prototipo implementable queda definido por el **Contrato de Prototipo** y usa Next.js estable, Supabase Auth real, administracion minima y lectura de la fuente externa mediante backend.
 - El **MVP** no incluye **Saldo Consumido**, **Comision**, reversos, reembolsos, reportes asincronos ni analitica avanzada.
-- La fuente externa ya tiene indices utiles para `ticket`, `telefono`, `cuentaid`, `cuenta.cuentaid` y `sku_items.SKU`; antes de produccion formal se debe revisar o agregar indice para `sales_recargas.fechahora`, idealmente compuesto con `cuentaid`.
-- Antes de produccion formal se debe revisar separacion de entornos, indices de la fuente externa, timeouts de consulta, auditoria de exportaciones y manejo de PII en CSV.
+- Antes de produccion formal se debe revisar separacion de entornos, limites de fan-out, timeouts de consulta, auditoria de exportaciones y manejo de PII en CSV.
 
 ## Example dialogue
 
@@ -264,7 +258,7 @@ _Avoid_: producto completo, analitica avanzada
 > **Domain expert:** "No. El cliente hijo solo ve sus propias transacciones. El cliente padre es quien puede ver las transacciones de los clientes hijos de su grupo."
 >
 > **Dev:** "El dashboard guarda las transacciones para mostrarlas despues?"
-> **Domain expert:** "No como fuente de verdad. Las transacciones se consultan desde la base externa; la base del dashboard se usa para usuarios y permisos."
+> **Domain expert:** "No como fuente de verdad. Las transacciones se consultan desde la API TAE; la base del dashboard se usa para usuarios y permisos."
 >
 > **Dev:** "Cuando decimos consumo, mostramos una sola cifra?"
 > **Domain expert:** "No. Consumo debe separarse en metricas como monto vendido, saldo consumido, numero de transacciones y comision."
@@ -284,11 +278,11 @@ _Avoid_: producto completo, analitica avanzada
 > **Dev:** "Una tabla vacia puede significar que fallo la fuente externa?"
 > **Domain expert:** "No. Si fallo la fuente externa, se muestra error. La tabla vacia solo significa que la consulta completa no encontro transacciones."
 >
-> **Dev:** "De donde sale el estado si `sales_recargas` no tiene columna `estado`?"
-> **Domain expert:** "Se normaliza desde `codresp`: `0` es exitosa y cualquier otro codigo es fallida."
+> **Dev:** "De donde sale el estado si la API TAE no tiene columna `estado`?"
+> **Domain expert:** "Se normaliza desde `codigoRespuesta`: `0` es exitosa y cualquier otro codigo es fallida."
 >
 > **Dev:** "La documentacion de la API habla de `codigoRespuesta`, `codigoMensaje` y `success`; usamos esos nombres directo en el dashboard?"
-> **Domain expert:** "No. Sirven para diagnostico y contexto del servicio que escribe la fuente externa, pero el dashboard lee `sales_recargas.codresp` y lo normaliza a estados de negocio."
+> **Domain expert:** "No. Sirven para diagnostico y contexto del servicio, pero el dashboard normaliza `codigoRespuesta` a estados de negocio."
 >
 > **Dev:** "Podemos calcular comision si no viene en la fuente externa?"
 > **Domain expert:** "No. Si no hay campo confiable, comision se muestra como no disponible en el MVP."
@@ -297,7 +291,7 @@ _Avoid_: producto completo, analitica avanzada
 > **Domain expert:** "Si. En el MVP puede configurar metadata y consultar transacciones de cualquier cliente, pero no modificar transacciones externas."
 >
 > **Dev:** "Auditamos todos los listados?"
-> **Domain expert:** "No. Auditamos exportaciones, detalle, cambios de permisos/mapeos y accesos de administrador interno; los listados normales quedan fuera."
+> **Domain expert:** "No. Auditamos exportaciones, cambios de permisos/mapeos y accesos de administrador interno; los listados normales quedan fuera."
 >
 > **Dev:** "Supabase se configura desde migraciones locales del repo?"
 > **Domain expert:** "No. Para este prototipo se administra desde el Dashboard de Supabase; el repo solo conserva SQL de referencia para reproducibilidad."
@@ -305,11 +299,11 @@ _Avoid_: producto completo, analitica avanzada
 > **Dev:** "Entonces el portal admin ya no administra clientes o usuarios?"
 > **Domain expert:** "Si los administra. Supabase Dashboard se usa para infraestructura y configuracion; el portal admin gestiona la operacion diaria del dashboard."
 >
-> **Dev:** "El prototipo consultara produccion directamente?"
-> **Domain expert:** "No. Se conectara desde local a un backup de la fuente externa con usuario de solo lectura."
+> **Dev:** "El prototipo consulta la API TAE desde el navegador?"
+> **Domain expert:** "No. Next.js consulta la API TAE desde el servidor y aplica permisos antes de cada llamada."
 >
 > **Dev:** "De donde sale el mensaje visible de respuesta?"
-> **Domain expert:** "Del campo `descrip`; si no existe, usamos `mensajenativo` como respaldo. Ese mensaje es diagnostico, no el estado del negocio."
+> **Domain expert:** "Del campo `descripcion`. Ese mensaje es diagnostico, no el estado del negocio."
 
 ## Flagged ambiguities
 
@@ -323,12 +317,11 @@ _Avoid_: producto completo, analitica avanzada
 - "Pagina de resultados" no equivale al resultado completo; los KPIs deben calcularse sobre todo el conjunto filtrado permitido.
 - "Estado vacio" y "error de fuente externa" son estados distintos; no se debe esconder una falla externa como ausencia de transacciones.
 - "Contrato de transaccion" no debe confundirse con el esquema real de la fuente externa; el dashboard trabaja con un **Registro de Transaccion Normalizado**.
-- El **Backup Local de Fuente Externa** no es una fuente de verdad nueva; solo es el entorno de desarrollo para validar consultas contra una copia de la fuente real.
+- La API TAE es la fuente externa consultada; el dashboard no guarda copias transaccionales como fuente de verdad.
 - La **Gestion Operativa de Supabase** no implica que el repositorio ignore el modelo; el SQL de referencia documenta la estructura esperada, pero los cambios se aplican manualmente desde Supabase Dashboard.
 - La **Gestion Operativa de Supabase** no sustituye el portal admin del producto; el portal admin sigue siendo la herramienta para administrar clientes, perfiles, grupos, membresias y usuarios del dashboard.
-- "`estado` no existe como columna en `sales_recargas`; el estado de negocio del dashboard se deriva de **Codigo de Respuesta**."
+- "`estado` no existe como campo TAE; el estado de negocio del dashboard se deriva de **Codigo de Respuesta**."
 - El MVP no tiene multiples operadores; **Operador** queda fijo como Telcel hasta que exista una fuente confiable o catalogo multioperador.
-- La documentacion del **Servicio API TAE** usa nombres como `codigoRespuesta`, `codigoMensaje`, `tokenTransaction`, `transaccionID` y `success`; esos nombres dan contexto diagnostico, pero no sustituyen el mapeo confirmado de la **Tabla de Recargas**.
-- "`descbalance` no es **Saldo Consumido**; solo indica si hubo descuento de balance y no debe tratarse como monto."
+- La documentacion del **Servicio API TAE** usa nombres como `codigoRespuesta`, `codigoMensaje`, `tokenTransaction`, `transaccionID` y `success`; esos nombres dan contexto diagnostico, pero no sustituyen el **Registro de Transaccion Normalizado**.
 - **Saldo Consumido** y **Comision** pertenecen a metricas futuras hasta que exista fuente confiable; no deben aparecer como columnas vacias en el MVP.
 - La PII sigue siendo sensible aunque el MVP tenga **Auditoria Minima**; antes de produccion formal se debe revisar el manejo de PII en CSV.

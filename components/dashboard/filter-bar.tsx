@@ -26,6 +26,7 @@ export interface TransactionFilterState {
 interface FilterBarProps {
   availableClients: DashboardClientOption[]
   filters: TransactionFilterState
+  showClientFilter?: boolean
   onFiltersChange: (filters: TransactionFilterState) => void
   onApply: () => void
 }
@@ -33,10 +34,11 @@ interface FilterBarProps {
 export function FilterBar({
   availableClients,
   filters,
+  showClientFilter,
   onFiltersChange,
   onApply,
 }: FilterBarProps) {
-  const shouldShowClientFilter = availableClients.length > 1
+  const shouldShowClientFilter = showClientFilter ?? availableClients.length > 1
 
   const handleChange = (key: keyof TransactionFilterState, value: string) => {
     onFiltersChange({

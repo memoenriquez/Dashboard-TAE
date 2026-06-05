@@ -38,6 +38,31 @@ describe("Supabase environment module boundaries", () => {
     )
   })
 
+  it("keeps the TAE API key behind server-only API modules", () => {
+    const taeServerFiles = [
+      "lib/tae-api/client.ts",
+      "lib/tae-api/transactions-repository.ts",
+      "lib/tae-api/external-clients-repository.ts",
+    ]
+    const browserFacingFiles = [
+      "components/dashboard/transaction-dashboard.tsx",
+      "components/dashboard/export-button.tsx",
+      "components/admin/client-form.tsx",
+      "lib/supabase/env-public.ts",
+      "lib/supabase/client.ts",
+    ]
+
+    for (const path of taeServerFiles) {
+      expect(readProjectFile(path)).toContain('import "server-only"')
+    }
+
+    for (const path of browserFacingFiles) {
+      const source = readProjectFile(path)
+      expect(source).not.toContain("TAE_API_KEY")
+      expect(source).not.toContain("@/lib/tae-api")
+    }
+  })
+
   it("limits admin client imports to trusted server API modules", () => {
     const allowedAdminClientImporters = [
       "app/api/_lib/dashboard-context.ts",
@@ -54,7 +79,6 @@ describe("Supabase environment module boundaries", () => {
       "app/api/admin/invitations/route.ts",
       "app/api/admin/profiles/route.ts",
       "app/api/admin/setup/route.ts",
-      "app/api/transactions/[ticket]/route.ts",
       "app/api/transactions/export/route.ts",
       "app/api/transactions/route.ts",
       "app/dashboard/admin/layout.tsx",

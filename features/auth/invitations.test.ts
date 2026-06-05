@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  createInviteRedirectUrl,
   DashboardInvitationAuthError,
   DashboardInvitationValidationError,
   getDashboardInvitationStatus,
@@ -23,6 +24,14 @@ const activeClient: Client = {
   createdAt: baseTimestamp,
   updatedAt: baseTimestamp,
 }
+
+describe("createInviteRedirectUrl", () => {
+  it("builds a Supabase email redirect through the auth confirmation route", () => {
+    expect(createInviteRedirectUrl("https://dashboard.example.com")).toBe(
+      "https://dashboard.example.com/auth/confirm?next=%2Fauth%2Faccept-invite"
+    )
+  })
+})
 
 const createRepository = (
   client: Client | null = activeClient
@@ -96,7 +105,7 @@ describe("inviteDashboardUser", () => {
         email: "invitado@example.com",
         options: {
           redirectTo:
-            "https://dashboard.example.com/auth/accept-invite",
+            "https://dashboard.example.com/auth/confirm?next=%2Fauth%2Faccept-invite",
           data: {
             displayName: "Usuario Invitado",
             dashboardClientId: activeClient.id,
@@ -319,7 +328,7 @@ describe("resendDashboardInvitation", () => {
         email: "invitado@example.com",
         options: {
           redirectTo:
-            "https://dashboard.example.com/auth/accept-invite",
+            "https://dashboard.example.com/auth/confirm?next=%2Fauth%2Faccept-invite",
           data: {
             displayName: "Usuario Invitado",
             dashboardClientId: activeClient.id,

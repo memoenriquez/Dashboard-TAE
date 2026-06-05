@@ -1,6 +1,6 @@
 import { listTransactions } from "@/features/transactions/transaction-service"
 import { applyExternalClientFilterToScope } from "@/features/clients/scope"
-import { createSqlServerTransactionRepository } from "@/lib/external-db/transactions-repository"
+import { createTaeApiTransactionRepository } from "@/lib/tae-api/transactions-repository"
 
 import { resolveTransactionRequestContext } from "../_lib/dashboard-context"
 import { withApiErrorHandling } from "../_lib/api-route"
@@ -22,7 +22,7 @@ export const GET = withApiErrorHandling(async (request: Request) => {
     const page = parsePositiveInteger(url.searchParams, "page", 1, 10_000)
     const pageSize = parsePositiveInteger(url.searchParams, "pageSize", 25, 100)
     const result = await listTransactions({
-      repository: createSqlServerTransactionRepository(),
+      repository: createTaeApiTransactionRepository(),
       scope,
       filters,
       page,

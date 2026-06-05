@@ -16,7 +16,6 @@ import type { DashboardTransaction } from "./types"
 
 interface TransactionsTableProps {
   detail: DashboardTransaction | null
-  openingTicket: string | null
   rows: DashboardTransaction[]
   showClientColumn: boolean
   onCloseDetail: () => void
@@ -25,7 +24,6 @@ interface TransactionsTableProps {
 
 export function TransactionsTable({
   detail,
-  openingTicket,
   rows,
   showClientColumn,
   onCloseDetail,
@@ -87,7 +85,6 @@ export function TransactionsTable({
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={openingTicket !== null}
                     onClick={() => {
                       if (isExpanded) {
                         onCloseDetail()
@@ -97,10 +94,7 @@ export function TransactionsTable({
                       onOpenDetail(row)
                     }}
                   >
-                    {getDetailButtonLabel({
-                      isExpanded,
-                      isOpening: openingTicket === row.ticket,
-                    })}
+                    {getDetailButtonLabel(isExpanded)}
                   </Button>
                 </TableCell>
               </TableRow>
@@ -119,17 +113,7 @@ export function TransactionsTable({
   )
 }
 
-const getDetailButtonLabel = ({
-  isExpanded,
-  isOpening,
-}: {
-  isExpanded: boolean
-  isOpening: boolean
-}) => {
-  if (isOpening) {
-    return "Abriendo..."
-  }
-
+const getDetailButtonLabel = (isExpanded: boolean) => {
   if (isExpanded) {
     return "Ocultar"
   }

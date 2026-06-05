@@ -1,4 +1,4 @@
-import { listExternalClients } from "@/lib/external-db/external-clients-repository"
+import { listExternalClients } from "@/lib/tae-api/external-clients-repository"
 
 import { assertInternalAdminContext } from "../../_lib/dashboard-context"
 import { withApiErrorHandling } from "../../_lib/api-route"

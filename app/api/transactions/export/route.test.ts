@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const {
   applyExternalClientFilterToScopeMock,
-  createSqlServerTransactionRepositoryMock,
+  createTaeApiTransactionRepositoryMock,
   createTransactionsCsvMock,
   recordAuditEventMock,
   resolveTransactionRequestContextMock,
   trustedAuditWriterMock,
 } = vi.hoisted(() => ({
   applyExternalClientFilterToScopeMock: vi.fn(),
-  createSqlServerTransactionRepositoryMock: vi.fn(),
+  createTaeApiTransactionRepositoryMock: vi.fn(),
   createTransactionsCsvMock: vi.fn(),
   recordAuditEventMock: vi.fn(),
   resolveTransactionRequestContextMock: vi.fn(),
@@ -28,8 +28,8 @@ vi.mock("@/features/transactions/transaction-service", () => ({
   createTransactionsCsv: createTransactionsCsvMock,
 }))
 
-vi.mock("@/lib/external-db/transactions-repository", () => ({
-  createSqlServerTransactionRepository: createSqlServerTransactionRepositoryMock,
+vi.mock("@/lib/tae-api/transactions-repository", () => ({
+  createTaeApiTransactionRepository: createTaeApiTransactionRepositoryMock,
 }))
 
 vi.mock("../../_lib/dashboard-context", () => ({
@@ -64,7 +64,7 @@ const dashboardContext = {
 describe("GET /api/transactions/export", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    createSqlServerTransactionRepositoryMock.mockReturnValue({})
+    createTaeApiTransactionRepositoryMock.mockReturnValue({})
     resolveTransactionRequestContextMock.mockResolvedValue(dashboardContext)
     applyExternalClientFilterToScopeMock.mockReturnValue(scope)
     createTransactionsCsvMock.mockResolvedValue("ticket,fecha\nTICKET-1,2026-01-01")
