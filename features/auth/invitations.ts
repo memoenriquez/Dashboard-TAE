@@ -195,10 +195,7 @@ export const resendDashboardInvitation = async ({
 
 export const createInviteRedirectUrl = (appUrl: string) => {
   const origin = new URL(normalizeAppUrl(appUrl)).origin
-  const redirectUrl = new URL("/auth/confirm", origin)
-  redirectUrl.searchParams.set("next", "/auth/accept-invite")
-
-  return redirectUrl.toString()
+  return `${origin}/auth/accept-invite`
 }
 
 const normalizeAppUrl = (appUrl: string) => {

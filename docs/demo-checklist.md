@@ -6,8 +6,8 @@ Use this checklist to prepare the local prototype demo.
 
 - Apply the reference schema and RLS policies from `docs/supabase-reference.sql`.
 - Configure Supabase Auth redirect URLs to allow
-  `http://localhost:3000/auth/confirm` for local invitation acceptance and
-  password reset callbacks.
+  `http://localhost:3000/auth/accept-invite` for local invitation acceptance
+  and `http://localhost:3000/auth/confirm` for password reset callbacks.
 - Enable leaked password protection in Supabase Auth before sharing the demo
   outside the local prototype, then confirm Supabase Security Advisor no longer
   reports `auth_leaked_password_protection`.

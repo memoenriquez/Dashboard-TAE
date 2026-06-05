@@ -26,9 +26,9 @@ const activeClient: Client = {
 }
 
 describe("createInviteRedirectUrl", () => {
-  it("builds a Supabase email redirect through the auth confirmation route", () => {
+  it("builds a Supabase email redirect to the client-side invite acceptance page", () => {
     expect(createInviteRedirectUrl("https://dashboard.example.com")).toBe(
-      "https://dashboard.example.com/auth/confirm?next=%2Fauth%2Faccept-invite"
+      "https://dashboard.example.com/auth/accept-invite"
     )
   })
 })
@@ -105,7 +105,7 @@ describe("inviteDashboardUser", () => {
         email: "invitado@example.com",
         options: {
           redirectTo:
-            "https://dashboard.example.com/auth/confirm?next=%2Fauth%2Faccept-invite",
+            "https://dashboard.example.com/auth/accept-invite",
           data: {
             displayName: "Usuario Invitado",
             dashboardClientId: activeClient.id,
@@ -328,7 +328,7 @@ describe("resendDashboardInvitation", () => {
         email: "invitado@example.com",
         options: {
           redirectTo:
-            "https://dashboard.example.com/auth/confirm?next=%2Fauth%2Faccept-invite",
+            "https://dashboard.example.com/auth/accept-invite",
           data: {
             displayName: "Usuario Invitado",
             dashboardClientId: activeClient.id,
