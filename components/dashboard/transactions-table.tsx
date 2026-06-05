@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { formatExternalDateTime } from "@/features/transactions/date-time"
 
 import { TransactionDetail } from "./transaction-detail"
 import type { DashboardTransaction } from "./types"
@@ -59,7 +60,7 @@ export function TransactionsTable({
             <Fragment key={row.ticket}>
               <TableRow className="hover:bg-muted/20">
                 <TableCell className="max-w-0 truncate text-sm tabular-nums">
-                  {new Date(row.occurredAt).toLocaleString("es-MX")}
+                  {formatExternalDateTime(row.occurredAt)}
                 </TableCell>
                 <TableCell>
                   <Badge variant={row.status === "successful" ? "secondary" : "destructive"}>

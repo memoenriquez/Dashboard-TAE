@@ -63,4 +63,25 @@ describe("normalizeTransactionRow", () => {
       visibleClientName: "Razon Fallback",
     })
   })
+
+  it("preserves the timestamp returned by the external API", () => {
+    expect(
+      normalizeTransactionRow({
+        ticket: "T-3",
+        cuentaid: 301,
+        fechahora: "2026-06-03T10:00:00.000-06:00",
+        telefono: "5511111111",
+        SKU: "TELCEL20",
+        productName: "Telcel 20",
+        monto: 20,
+        codresp: "0",
+        descrip: "Operacion exitosa",
+        mensajenativo: null,
+        tokentransid: "api-token",
+        trequestid: null,
+        nombrenegocio: "Tienda Norte",
+        razonsocial: null,
+      }).occurredAt
+    ).toBe("2026-06-03T10:00:00.000-06:00")
+  })
 })

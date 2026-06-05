@@ -28,5 +28,5 @@ const toIsoString = (value: string | Date) => {
     return value.toISOString()
   }
 
-  return new Date(value).toISOString()
+  return value.trim()
 }
