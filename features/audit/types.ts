@@ -1,6 +1,5 @@
 export type AuditEventType =
   | "csv_exported"
-  | "transaction_detail_viewed"
   | "permission_changed"
   | "client_mapping_changed"
   | "internal_admin_accessed"

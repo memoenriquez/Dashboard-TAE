@@ -28,23 +28,19 @@ Use this checklist to prepare the local prototype demo.
 - Open `/dashboard/admin/users` and invite client users by email.
 - Open `/dashboard/admin/groups` and assign child client ids to the parent group.
 
-## SQL Server Backup
+## TAE API
 
 - Confirm `.env` has:
-  - `EXTERNAL_DB_HOST`
-  - `EXTERNAL_DB_PORT`
-  - `EXTERNAL_DB_NAME`
-  - `EXTERNAL_DB_USER`
-  - `EXTERNAL_DB_PASSWORD`
-  - `EXTERNAL_DB_ENCRYPT`
-- Confirm the SQL Server user is read-only.
-- Confirm this query works in SSMS:
-
-```sql
-select top 1 ticket, cuentaid, fechahora
-from sales_recargas
-order by fechahora desc;
-```
+  - `TAE_API_BASE_URL`
+  - `TAE_API_KEY`
+  - `TAE_API_TIMEOUT_MS`
+  - `TAE_FANOUT_CONCURRENCY`
+  - `TAE_ACCOUNT_PAGE_SIZE`
+  - `TAE_MAX_PAGES_PER_ACCOUNT`
+  - `TAE_FANOUT_MAX_ROWS`
+- Confirm the `ApiKey` is available only to server-side runtime code.
+- Confirm `getAccountsList` and `getTransactionsList` return data for at least
+  one linked CuentaID used in the demo.
 
 ## Runtime Checks
 

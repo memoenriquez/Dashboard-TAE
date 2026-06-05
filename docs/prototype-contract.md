@@ -12,16 +12,16 @@ This document defines the first implementable prototype contract for the airtime
 - Auth and dashboard metadata: Supabase Auth and Supabase tables.
 - Supabase integration: `@supabase/supabase-js` plus `@supabase/ssr` for App Router SSR auth.
 - Request protection: Next.js `proxy.ts`; `middleware.ts` is deprecated in Next.js 16.
-- External transaction source for local prototype: restored SQL Server backup of the external database.
-- External database access: read-only application user; application queries must be `SELECT` only.
+- External transaction source: server-only TAE API reads through Next.js Route Handlers.
+- External API access: `TAE_API_KEY` is server-only; account scope is resolved before every transaction call.
 
 ## Operating Boundaries
 
 - The dashboard is not the transaction source of truth.
-- The external backup is a local development copy, not a new source of truth.
+- The TAE API remains the external transaction source; the dashboard does not persist transaction copies.
 - Supabase infrastructure is operated from the Supabase Dashboard for this prototype.
 - The internal admin UI operates dashboard product data: clients, profiles, groups, memberships, and dashboard users.
-- The repository may keep SQL reference snippets, but it is not the operational migration source.
+- The repository may keep API contract notes, but it is not the external transaction source of truth.
 - Auth users are invited from the internal admin UI through trusted server code
   that calls Supabase Auth Admin APIs. The invitation immediately creates a
   non-admin `profiles` row linked to the selected dashboard client.
@@ -119,12 +119,13 @@ Required local variables:
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 SUPABASE_SECRET_KEY=
-EXTERNAL_DB_HOST=
-EXTERNAL_DB_PORT=
-EXTERNAL_DB_NAME=
-EXTERNAL_DB_USER=
-EXTERNAL_DB_PASSWORD=
-EXTERNAL_DB_ENCRYPT=
+TAE_API_BASE_URL=https://api.taectc.mx/api/Info
+TAE_API_KEY=
+TAE_API_TIMEOUT_MS=25000
+TAE_FANOUT_CONCURRENCY=5
+TAE_ACCOUNT_PAGE_SIZE=100
+TAE_MAX_PAGES_PER_ACCOUNT=100
+TAE_FANOUT_MAX_ROWS=10000
 TRANSACTION_QUERY_DEFAULT_DAYS=7
 TRANSACTION_QUERY_MAX_DAYS=90
 ```
@@ -136,8 +137,8 @@ Rules:
 - User-scoped reads should use the SSR client created with the publishable key and the request cookies so RLS remains the default enforcement layer.
 - Secret-key clients are reserved for trusted server code after authorization has already verified the actor, such as internal-admin mutations, Supabase Auth Admin calls, and privileged RPCs.
 - Legacy fallback variables are allowed only if the Supabase project does not yet use the new key model: `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`.
-- External database credentials are server-only.
-- The external database user must be read-only.
+- `TAE_API_KEY` is server-only and must never be exposed to the browser.
+- Transaction reads must go through Next.js route handlers so Supabase-derived scope is applied before any TAE API call.
 
 ## Internal Dashboard Routes
 
@@ -185,19 +186,19 @@ interface NormalizedTransactionRecord {
 
 Mapping rules:
 
-- `ticket` comes from `sales_recargas.ticket`.
-- `externalClientId` comes from `sales_recargas.cuentaid`.
-- `occurredAt` comes from `sales_recargas.fechahora`.
-- `phoneNumber` comes from `sales_recargas.telefono`.
-- `sku` comes from `sales_recargas.SKU`.
-- `productName` may be enriched from `sku_items.Nombre`.
+- `ticket` comes from `getTransactionsList.ticket`.
+- `externalClientId` comes from `getTransactionsList.cuentaID`.
+- `occurredAt` comes from `getTransactionsList.fechaHora`.
+- `phoneNumber` comes from `getTransactionsList.telefono`.
+- `sku` comes from `getTransactionsList.sku`.
+- `productName` comes from `getTransactionsList.producto`.
 - `operatorName` is fixed to `Telcel` for the MVP because there are no additional operators in scope.
-- `soldAmount` comes from `sales_recargas.monto`.
-- `responseCode` comes from `sales_recargas.codresp`.
-- `responseMessage` prefers `sales_recargas.descrip`, falls back to `sales_recargas.mensajenativo`, and is `null` when both are absent.
-- `status` is `successful` when `codresp = '0'`; otherwise `failed`.
-- `apiReference` comes from `sales_recargas.tokentransid` or `sales_recargas.trequestid`.
-- `visibleClientName` prefers `cuenta.nombrenegocio`, then `cuenta.razonsocial`, then operational personal-name fallback.
+- `soldAmount` comes from `getTransactionsList.monto`.
+- `responseCode` comes from `getTransactionsList.codigoRespuesta`.
+- `responseMessage` comes from `getTransactionsList.descripcion` and is `null` when absent.
+- `status` is `successful` when `codigoRespuesta = '0'`; otherwise `failed`.
+- `apiReference` comes from `getTransactionsList.tokenTransaction`.
+- `visibleClientName` prefers `getTransactionsList.nombreNegocio`, then `getTransactionsList.razonSocial`.
 
 ## Filters And Limits
 
@@ -264,7 +265,6 @@ Avoid:
 Minimum audit event types:
 
 - `csv_exported`
-- `transaction_detail_viewed`
 - `permission_changed`
 - `client_mapping_changed`
 - `internal_admin_accessed`
@@ -279,7 +279,7 @@ The first prototype demo is acceptable when all of the following work locally:
 - The internal administrator can create or maintain clients, users/profiles, groups, and memberships through a minimum UI.
 - A parent client user can view its own transactions and child client transactions.
 - A child client user can view only its own transactions.
-- The dashboard can query the restored SQL Server backup through a read-only user.
+- The dashboard can query the TAE API from server-side code with scoped CuentaID fan-out.
 - Date, status, visible client, phone number, operator, and transaction reference filters affect KPIs and table results consistently.
 - A transaction detail view opens only inside the authenticated user's resolved scope.
 - CSV export respects filters, scope, and the 90-day limit.

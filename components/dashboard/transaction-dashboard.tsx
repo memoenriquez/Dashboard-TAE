@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -22,6 +21,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { readApiErrorMessage } from "@/lib/api/client-error"
 
+import {
+  buildBalanceQueryUrl,
+  getBalanceQueryExternalClientId,
+  shouldShowClientFilter,
+} from "./balance-query"
 import { ExportButton } from "./export-button"
 import { FilterBar, type TransactionFilterState } from "./filter-bar"
 import { KpiCards } from "./kpi-cards"
@@ -29,6 +33,7 @@ import { SourceError } from "./source-error"
 import { TransactionsEmptyState } from "./empty-state"
 import { TransactionsTable } from "./transactions-table"
 import type {
+  AccountBalanceResponse,
   DashboardClientContext,
   DashboardClientOption,
   DashboardTransaction,
@@ -51,13 +56,22 @@ export function TransactionDashboard({
     useState<TransactionFilterState>(initialFilters)
   const [page, setPage] = useState(1)
   const [data, setData] = useState<TransactionsResponse | null>(null)
+  const [accountBalance, setAccountBalance] =
+    useState<AccountBalanceResponse | null>(null)
   const [detail, setDetail] = useState<DashboardTransaction | null>(null)
-  const [openingTicket, setOpeningTicket] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [accountBalanceError, setAccountBalanceError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isAccountBalanceLoading, setIsAccountBalanceLoading] = useState(false)
   const hasPendingFilters =
     JSON.stringify(filters) !== JSON.stringify(appliedFilters)
   const hasMultipleAvailableClients = availableClients.length > 1
+  const showClientFilter = shouldShowClientFilter(availableClients, currentClient)
+  const accountBalanceExternalClientId = getBalanceQueryExternalClientId(
+    appliedFilters.externalClientId,
+    availableClients,
+    currentClient
+  )
 
   const loadTransactions = useCallback(async () => {
     setIsLoading(true)
@@ -100,45 +114,76 @@ export function TransactionDashboard({
     }
   }, [appliedFilters, page])
 
+  const loadAccountBalance = useCallback(async (signal?: AbortSignal) => {
+    setAccountBalance(null)
+    setAccountBalanceError(null)
+
+    if (!accountBalanceExternalClientId) {
+      setIsAccountBalanceLoading(false)
+      return
+    }
+
+    setIsAccountBalanceLoading(true)
+
+    try {
+      const response = await fetch(buildBalanceQueryUrl(accountBalanceExternalClientId), {
+        signal,
+      })
+
+      if (signal?.aborted) {
+        return
+      }
+
+      if (!response.ok) {
+        setAccountBalanceError(
+          await readApiErrorMessage(response, "No fue posible consultar saldo.")
+        )
+        return
+      }
+
+      const balance = (await response.json()) as AccountBalanceResponse
+
+      if (signal?.aborted) {
+        return
+      }
+
+      setAccountBalance(balance)
+    } catch (error) {
+      if (isAbortError(error)) {
+        return
+      }
+
+      setAccountBalanceError("No fue posible consultar saldo en este momento.")
+    } finally {
+      if (!signal?.aborted) {
+        setIsAccountBalanceLoading(false)
+      }
+    }
+  }, [accountBalanceExternalClientId])
+
   useEffect(() => {
     queueMicrotask(() => {
       void loadTransactions()
     })
   }, [loadTransactions])
 
-  const handleOpenDetail = async (transaction: DashboardTransaction) => {
+  useEffect(() => {
+    const abortController = new AbortController()
+
+    queueMicrotask(() => {
+      if (!abortController.signal.aborted) {
+        void loadAccountBalance(abortController.signal)
+      }
+    })
+
+    return () => {
+      abortController.abort()
+    }
+  }, [loadAccountBalance])
+
+  const handleOpenDetail = (transaction: DashboardTransaction) => {
     setError(null)
     setDetail(transaction)
-    setOpeningTicket(transaction.ticket)
-    const toastId = toast.loading("Actualizando detalle de transacción...")
-
-    try {
-      const response = await fetch(
-        `/api/transactions/${encodeURIComponent(transaction.ticket)}`
-      )
-
-      if (!response.ok) {
-        toast.error(
-          await readApiErrorMessage(
-            response,
-            "Se mostró el detalle disponible en la tabla, pero no fue posible actualizarlo en este momento."
-          ),
-          { id: toastId }
-        )
-        return
-      }
-
-      const payload = (await response.json()) as { transaction: DashboardTransaction }
-      setDetail(payload.transaction)
-      toast.dismiss(toastId)
-    } catch {
-      toast.error(
-        "Se mostró el detalle disponible en la tabla, pero no fue posible actualizarlo en este momento.",
-        { id: toastId }
-      )
-    } finally {
-      setOpeningTicket(null)
-    }
   }
 
   const handleApplyFilters = () => {
@@ -158,6 +203,15 @@ export function TransactionDashboard({
   const handleNextPage = () => {
     setPage((currentPage) => Math.min(totalPages, currentPage + 1))
   }
+  const accountBalanceStatus = !accountBalanceExternalClientId
+    ? "requires-selection"
+    : isAccountBalanceLoading
+      ? "loading"
+      : accountBalanceError
+        ? "error"
+        : accountBalance
+          ? "ready"
+          : "loading"
 
   return (
     <main className="flex flex-col gap-5">
@@ -208,6 +262,7 @@ export function TransactionDashboard({
       <FilterBar
         availableClients={availableClients}
         filters={filters}
+        showClientFilter={showClientFilter}
         onFiltersChange={setFilters}
         onApply={handleApplyFilters}
       />
@@ -239,6 +294,9 @@ export function TransactionDashboard({
           <KpiCards
             transactionCount={data?.kpis.transactionCount ?? 0}
             soldAmount={data?.kpis.soldAmount ?? 0}
+            accountBalance={accountBalance}
+            accountBalanceStatus={accountBalanceStatus}
+            accountBalanceMessage={accountBalanceError ?? undefined}
           />
 
           <Card className="overflow-hidden shadow-sm">
@@ -259,7 +317,6 @@ export function TransactionDashboard({
               {data?.rows.length ? (
                 <TransactionsTable
                   detail={detail}
-                  openingTicket={openingTicket}
                   rows={data.rows}
                   showClientColumn={hasMultipleAvailableClients}
                   onCloseDetail={() => setDetail(null)}
@@ -312,3 +369,6 @@ export function TransactionDashboard({
     </main>
   )
 }
+
+const isAbortError = (error: unknown) =>
+  error instanceof DOMException && error.name === "AbortError"

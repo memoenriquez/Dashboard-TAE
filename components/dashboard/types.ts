@@ -28,6 +28,12 @@ export interface DashboardClientOption {
   clientKind: "parent" | "child" | "standalone"
 }
 
+export interface AccountBalanceResponse {
+  externalClientId: number
+  balance: number
+  updatedAt: string
+}
+
 export interface TransactionsResponse {
   rows: DashboardTransaction[]
   kpis: {

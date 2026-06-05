@@ -1,6 +1,6 @@
 import { applyExternalClientFilterToScope } from "@/features/clients/scope"
 import { createTransactionsCsv } from "@/features/transactions/transaction-service"
-import { createSqlServerTransactionRepository } from "@/lib/external-db/transactions-repository"
+import { createTaeApiTransactionRepository } from "@/lib/tae-api/transactions-repository"
 
 import {
   recordTrustedAuditEvent,
@@ -20,7 +20,7 @@ export const GET = withApiErrorHandling(async (request: Request) => {
       filters.externalClientId ?? null
     )
     const csv = await createTransactionsCsv({
-      repository: createSqlServerTransactionRepository(),
+      repository: createTaeApiTransactionRepository(),
       scope,
       filters,
     })
