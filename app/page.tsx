@@ -3,11 +3,28 @@ import {
   RadioTowerIcon,
 } from "lucide-react";
 import Image from "next/image";
+import { redirect } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  buildRootAuthCodeRedirectPath,
+  type RootAuthCodeSearchParams,
+} from "@/features/auth/root-code-redirect";
 
-export default function Home() {
+interface HomePageProps {
+  searchParams?: Promise<RootAuthCodeSearchParams>;
+}
+
+export default async function Home({ searchParams }: HomePageProps) {
+  const authRedirectPath = buildRootAuthCodeRedirectPath(
+    (await searchParams) ?? {}
+  );
+
+  if (authRedirectPath) {
+    redirect(authRedirectPath);
+  }
+
   return (
     <main className="min-h-dvh overflow-hidden bg-background">
       <section className="mx-auto flex min-h-dvh w-full max-w-7xl flex-col justify-center gap-10 px-6 py-12 lg:px-8">
