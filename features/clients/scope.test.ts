@@ -26,6 +26,7 @@ const createProfile = (overrides: Partial<Profile>): Profile => ({
   clientId: null,
   isInternalAdmin: false,
   displayName: "Usuario Demo",
+  lastSeenAt: null,
   createdAt: baseTimestamp,
   updatedAt: baseTimestamp,
   ...overrides,

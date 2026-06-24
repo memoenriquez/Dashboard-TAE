@@ -7,11 +7,13 @@ import { DashboardUnauthorizedError } from "../../_lib/errors"
 const {
   assertInternalAdminContextMock,
   getClientByIdMock,
+  listUsersMock,
   listProfilesMock,
   upsertProfileMock,
 } = vi.hoisted(() => ({
   assertInternalAdminContextMock: vi.fn(),
   getClientByIdMock: vi.fn(),
+  listUsersMock: vi.fn(),
   listProfilesMock: vi.fn(),
   upsertProfileMock: vi.fn(),
 }))
@@ -24,7 +26,7 @@ vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(() => ({
     auth: {
       admin: {
-        listUsers: vi.fn(),
+        listUsers: listUsersMock,
       },
     },
   })),
@@ -39,6 +41,7 @@ const adminProfile = {
   clientId: null,
   isInternalAdmin: true,
   displayName: "Admin",
+  lastSeenAt: null,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
 }
@@ -88,6 +91,7 @@ describe("POST /api/admin/profiles", () => {
       clientId: activeClient.id,
       isInternalAdmin: false,
       displayName: "Client User",
+      lastSeenAt: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     })
@@ -161,6 +165,53 @@ describe("POST /api/admin/profiles", () => {
       clientId: activeClient.id,
       isInternalAdmin: false,
       displayName: "Client User",
+    })
+  })
+})
+
+describe("GET /api/admin/profiles", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    assertInternalAdminContextMock.mockResolvedValue(createContext())
+  })
+
+  it("returns profile last seen activity from dashboard metadata", async () => {
+    listProfilesMock.mockResolvedValue([
+      {
+        ...adminProfile,
+        lastSeenAt: "2026-06-23T10:00:00.000Z",
+      },
+    ])
+    listUsersMock.mockResolvedValue({
+      data: {
+        users: [
+          {
+            id: adminProfile.id,
+            email: "admin@example.com",
+            invited_at: "2026-01-01T00:00:00.000Z",
+            email_confirmed_at: "2026-01-02T00:00:00.000Z",
+            last_sign_in_at: "2026-01-03T00:00:00.000Z",
+          },
+        ],
+      },
+      error: null,
+    })
+    const { GET } = await import("./route")
+
+    const response = await GET(new Request("http://localhost/api/admin/profiles"))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      profiles: [
+        {
+          ...adminProfile,
+          lastSeenAt: "2026-06-23T10:00:00.000Z",
+          email: "admin@example.com",
+          invitedAt: "2026-01-01T00:00:00.000Z",
+          emailConfirmedAt: "2026-01-02T00:00:00.000Z",
+          invitationStatus: "accepted",
+        },
+      ],
     })
   })
 })

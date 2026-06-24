@@ -28,7 +28,6 @@ export const GET = withApiErrorHandling(async () => {
           email: authUser?.email ?? null,
           invitedAt,
           emailConfirmedAt,
-          lastSignInAt: authUser?.lastSignInAt ?? null,
           invitationStatus: getDashboardInvitationStatus({
             invitedAt,
             emailConfirmedAt,
@@ -106,7 +105,6 @@ const listAuthUsersById = async () => {
       email: string | null
       invitedAt: string | null
       emailConfirmedAt: string | null
-      lastSignInAt: string | null
     }
   >()
   let page = 1
@@ -127,7 +125,6 @@ const listAuthUsersById = async () => {
         email: user.email ?? null,
         invitedAt: user.invited_at ?? null,
         emailConfirmedAt: user.email_confirmed_at ?? null,
-        lastSignInAt: user.last_sign_in_at ?? null,
       })
     })
 

@@ -20,6 +20,7 @@ export default async function DashboardLayout({
     userId: user.id,
     repository: metadataRepository,
   })
+  await metadataRepository.touchProfileLastSeen(user.id)
 
   return (
     <SidebarProvider>

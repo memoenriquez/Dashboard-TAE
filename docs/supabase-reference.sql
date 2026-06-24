@@ -18,6 +18,7 @@ create table if not exists public.profiles (
   client_id uuid references public.clients(id),
   is_internal_admin boolean not null default false,
   display_name text not null,
+  last_seen_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint profile_client_required_for_non_admin

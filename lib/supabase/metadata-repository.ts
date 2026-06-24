@@ -13,7 +13,10 @@ import type {
   Profile,
 } from "@/features/clients/types"
 
+import { createAdminClient } from "./admin"
+
 type JsonRecord = Record<string, unknown>
+const LAST_SEEN_TOUCH_INTERVAL_MS = 15 * 60 * 1000
 
 export interface DashboardMetadataRepository {
   getProfileByUserId: (userId: string) => Promise<Profile | null>
@@ -24,6 +27,7 @@ export interface DashboardMetadataRepository {
   createClient: (input: CreateClientInput) => Promise<Client>
   updateClient: (input: UpdateClientInput) => Promise<Client>
   listProfiles: () => Promise<Profile[]>
+  touchProfileLastSeen: (userId: string) => Promise<void>
   upsertProfile: (input: UpsertProfileInput) => Promise<Profile>
   listGroups: () => Promise<ClientGroup[]>
   listGroupsWithMembers: () => Promise<ClientGroupWithMembers[]>
@@ -219,6 +223,19 @@ export const createDashboardMetadataRepository = (
 
     return ((data ?? []) as JsonRecord[]).map(mapProfile)
   },
+  touchProfileLastSeen: async (userId) => {
+    const adminClient = createAdminClient()
+    const staleBefore = new Date(Date.now() - LAST_SEEN_TOUCH_INTERVAL_MS).toISOString()
+    const { error } = await adminClient
+      .from("profiles")
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq("id", userId)
+      .or(`last_seen_at.is.null,last_seen_at.lt.${staleBefore}`)
+
+    if (error) {
+      throw error
+    }
+  },
   upsertProfile: async (input) => {
     const { data, error } = await supabase
       .from("profiles")
@@ -403,6 +420,7 @@ const mapProfile = (row: JsonRecord): Profile => ({
   clientId: row.client_id ? String(row.client_id) : null,
   isInternalAdmin: Boolean(row.is_internal_admin),
   displayName: String(row.display_name),
+  lastSeenAt: row.last_seen_at ? String(row.last_seen_at) : null,
   createdAt: String(row.created_at),
   updatedAt: String(row.updated_at),
 })

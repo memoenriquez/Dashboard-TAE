@@ -15,6 +15,7 @@ export interface Profile {
   clientId: string | null
   isInternalAdmin: boolean
   displayName: string
+  lastSeenAt: string | null
   createdAt: string
   updatedAt: string
 }
