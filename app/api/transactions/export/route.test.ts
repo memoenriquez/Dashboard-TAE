@@ -50,6 +50,7 @@ const dashboardContext = {
       clientId: "client-id",
       isInternalAdmin: false,
       displayName: "Client User",
+      lastSeenAt: null,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     },

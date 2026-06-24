@@ -51,7 +51,7 @@ interface ProfileRecord {
   email: string | null
   invitedAt: string | null
   emailConfirmedAt: string | null
-  lastSignInAt: string | null
+  lastSeenAt: string | null
   invitationStatus: "accepted" | "pending" | "not_invited"
 }
 
@@ -486,9 +486,9 @@ const getInvitationStatusVariant = (status: ProfileRecord["invitationStatus"]) =
 
 const getInvitationStatusDescription = (profile: ProfileRecord) => {
   if (profile.invitationStatus === "accepted") {
-    return profile.lastSignInAt
-      ? `Último acceso: ${formatDateTime(profile.lastSignInAt)}`
-      : "Cuenta confirmada, sin accesos recientes"
+    return profile.lastSeenAt
+      ? `Última actividad: ${formatDateTime(profile.lastSeenAt)}`
+      : "Cuenta confirmada, sin actividad registrada"
   }
 
   if (profile.invitationStatus === "pending") {
