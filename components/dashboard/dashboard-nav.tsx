@@ -7,6 +7,7 @@ import { useState } from "react"
 import {
   BarChart3Icon,
   Building2Icon,
+  GaugeIcon,
   LogOutIcon,
   NetworkIcon,
   RadioTowerIcon,
@@ -39,6 +40,7 @@ const operationItems = [
 
 const adminItems = [
   { href: "/dashboard/metrics", label: "Métricas", icon: BarChart3Icon },
+  { href: "/dashboard/admin/telcel-reorder-points", label: "Puntos de Reorden", icon: GaugeIcon },
   { href: "/dashboard/admin/clients", label: "Clientes", icon: Building2Icon },
   { href: "/dashboard/admin/users", label: "Usuarios", icon: UsersIcon },
   { href: "/dashboard/admin/groups", label: "Grupos", icon: NetworkIcon },

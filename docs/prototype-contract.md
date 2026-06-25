@@ -150,6 +150,7 @@ Initial application routes:
 - `/dashboard/admin/clients`: minimum client administration.
 - `/dashboard/admin/users`: minimum user/profile administration.
 - `/dashboard/admin/groups`: minimum parent/child group administration.
+- `/dashboard/admin/telcel-reorder-points`: internal-admin calculator for aggregate Telcel reorder strategy.
 
 Initial backend endpoints or server actions:
 
