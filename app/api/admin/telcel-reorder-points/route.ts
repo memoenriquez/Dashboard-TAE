@@ -61,9 +61,15 @@ export const POST = withApiErrorHandling(async (request: Request) => {
 const parseReorderParams = (body: Record<string, unknown>) => {
   const dateFrom = parseDate(body.dateFrom, "dateFrom")
   const dateTo = parseDate(body.dateTo, "dateTo")
+  const workingStartHour = parseHour(body.workingStartHour, "workingStartHour", 9)
+  const workingEndHour = parseHour(body.workingEndHour, "workingEndHour", 18)
 
   if (dateFrom > dateTo) {
     throw new DashboardValidationError("La fecha inicial debe ser anterior a la final.")
+  }
+
+  if (workingEndHour <= workingStartHour) {
+    throw new DashboardValidationError("La hora final laboral debe ser mayor a la inicial.")
   }
 
   return {
@@ -74,8 +80,8 @@ const parseReorderParams = (body: Record<string, unknown>) => {
     maxLedgerBalance: parsePositiveNumber(body.maxLedgerBalance, "maxLedgerBalance", 50_000),
     leadTimeHours: parsePositiveNumber(body.leadTimeHours, "leadTimeHours", 2),
     workingHours: {
-      start: parseHour(body.workingStartHour, "workingStartHour", 9),
-      end: parseHour(body.workingEndHour, "workingEndHour", 18),
+      start: workingStartHour,
+      end: workingEndHour,
     },
     roundingIncrement: parsePositiveNumber(body.roundingIncrement, "roundingIncrement", 100),
     topUpTimes: parseTopUpTimes(body.topUpTimes),

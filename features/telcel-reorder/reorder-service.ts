@@ -275,6 +275,14 @@ const rankScenarios = (scenarios: ReorderScenario[]) => {
       return first.exceedsCap ? 1 : -1
     }
 
+    if (first.exceedsCap && second.exceedsCap) {
+      if (first.totalExposure !== second.totalExposure) {
+        return first.totalExposure - second.totalExposure
+      }
+
+      return second.periodsPerDay - first.periodsPerDay
+    }
+
     const riskDelta = getRiskRank(first.stockoutRisk) - getRiskRank(second.stockoutRisk)
 
     if (riskDelta !== 0) {
