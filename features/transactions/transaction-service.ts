@@ -174,6 +174,7 @@ export const createTransactionsCsv = async (input: {
       "codigo_respuesta",
       "mensaje_respuesta",
       "referencia_api",
+      "autorizacion",
     ].join(","),
     ...rows.map(formatCsvRow),
   ].join("\n")
@@ -192,6 +193,7 @@ const formatCsvRow = (row: NormalizedTransactionRecord) =>
     row.responseCode,
     row.responseMessage ?? "",
     row.apiReference ?? "",
+    row.authorization ?? "",
   ]
     .map(escapeCsvValue)
     .join(",")

@@ -182,6 +182,7 @@ interface NormalizedTransactionRecord {
   responseCode: string;
   responseMessage: string | null;
   apiReference: string | null;
+  authorization: string | null;
 }
 ```
 
@@ -199,6 +200,7 @@ Mapping rules:
 - `responseMessage` comes from `getTransactionsList.descripcion` and is `null` when absent.
 - `status` is `successful` when `codigoRespuesta = '0'`; otherwise `failed`.
 - `apiReference` comes from `getTransactionsList.tokenTransaction`.
+- `authorization` comes from `getTransactionsList.autorizacion` and is `null` when absent.
 - `visibleClientName` prefers `getTransactionsList.nombreNegocio`, then `getTransactionsList.razonSocial`.
 
 ## Filters And Limits

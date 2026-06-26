@@ -17,6 +17,7 @@ export const normalizeTransactionRow = (
     responseCode: String(row.codresp),
     responseMessage: firstNonEmpty(row.descrip, row.mensajenativo),
     apiReference: firstNonEmpty(row.tokentransid, row.trequestid),
+    authorization: firstNonEmpty(row.autorizacion),
   }
 }
 

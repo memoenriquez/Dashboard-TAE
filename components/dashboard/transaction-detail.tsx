@@ -61,6 +61,9 @@ export function TransactionDetail({ transaction }: TransactionDetailProps) {
           <DetailItem label="Referencia API">
             {transaction.apiReference ?? "No disponible"}
           </DetailItem>
+          <DetailItem label="Autorización">
+            {transaction.authorization ?? "No disponible"}
+          </DetailItem>
           <DetailItem label="Respuesta de proveedor">
             {transaction.responseMessage ?? "No disponible"}
           </DetailItem>

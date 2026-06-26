@@ -24,6 +24,7 @@ export interface TaeTransaction {
   tokenTransaction: string | null
   razonSocial: string | null
   nombreNegocio: string | null
+  autorizacion: string | null
 }
 
 export interface TaeBalance {
@@ -73,4 +74,5 @@ export const mapTaeTransactionToExternalRow = (
   trequestid: null,
   nombrenegocio: transaction.nombreNegocio,
   razonsocial: transaction.razonSocial,
+  autorizacion: transaction.autorizacion,
 })

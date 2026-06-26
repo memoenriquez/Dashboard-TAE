@@ -15,6 +15,7 @@ export interface NormalizedTransactionRecord {
   responseCode: string
   responseMessage: string | null
   apiReference: string | null
+  authorization: string | null
 }
 
 export interface ExternalTransactionRow {
@@ -32,6 +33,7 @@ export interface ExternalTransactionRow {
   trequestid: string | null
   nombrenegocio: string | null
   razonsocial: string | null
+  autorizacion: string | null
 }
 
 export interface TransactionFilters {

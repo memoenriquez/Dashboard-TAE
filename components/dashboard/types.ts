@@ -12,6 +12,7 @@ export interface DashboardTransaction {
   responseCode: string
   responseMessage: string | null
   apiReference: string | null
+  authorization: string | null
 }
 
 export interface DashboardClientContext {
