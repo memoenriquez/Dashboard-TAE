@@ -31,6 +31,7 @@ const createTransaction = (
   responseCode: "0",
   responseMessage: "Operacion exitosa",
   apiReference: "api-token",
+  authorization: "125251",
   ...overrides,
 })
 

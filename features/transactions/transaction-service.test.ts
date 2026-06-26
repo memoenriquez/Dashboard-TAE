@@ -24,6 +24,7 @@ const createTransaction = (
   responseCode: "0",
   responseMessage: "Operacion exitosa",
   apiReference: "api-token",
+  authorization: "125251",
   ...overrides,
 })
 
@@ -174,7 +175,7 @@ describe("createTransactionsCsv", () => {
         },
       })
     ).resolves.toContain(
-      "ticket,fecha,estado,operador,producto,telefono,monto_vendido,cliente_visible,codigo_respuesta,mensaje_respuesta,referencia_api"
+      "ticket,fecha,estado,operador,producto,telefono,monto_vendido,cliente_visible,codigo_respuesta,mensaje_respuesta,referencia_api,autorizacion"
     )
   })
 
@@ -186,6 +187,7 @@ describe("createTransactionsCsv", () => {
           visibleClientName: "+Cliente",
           responseMessage: "-error",
           apiReference: "@ref",
+          authorization: "=AUTH",
         }),
       ],
       getTransactionKpis: async () => ({
@@ -212,5 +214,32 @@ describe("createTransactionsCsv", () => {
     expect(csv).toContain("'+Cliente")
     expect(csv).toContain("'-error")
     expect(csv).toContain("'@ref")
+    expect(csv).toContain("'=AUTH")
+  })
+
+  it("exports an empty authorization column when authorization is absent", async () => {
+    const repository: TransactionRepository = {
+      listTransactions: async () => [createTransaction({ authorization: null })],
+      getTransactionKpis: async () => ({
+        transactionCount: 1,
+        soldAmount: 100,
+      }),
+      getTransactionDetail: async () => null,
+    }
+
+    const csv = await createTransactionsCsv({
+      repository,
+      scope: { type: "global" },
+      filters: {
+        from: new Date("2026-01-01T00:00:00.000Z"),
+        to: new Date("2026-01-31T23:59:59.999Z"),
+        status: "all",
+        phoneNumber: null,
+        operatorName: "Telcel",
+        reference: null,
+      },
+    })
+
+    expect(csv.split("\n")[1]).toMatch(/,$/)
   })
 })

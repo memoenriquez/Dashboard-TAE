@@ -20,6 +20,7 @@ describe("normalizeTransactionRow", () => {
         trequestid: "request-id",
         nombrenegocio: "Tienda Centro",
         razonsocial: "Razon Social SA",
+        autorizacion: "125251",
       })
     ).toEqual({
       ticket: "T-1",
@@ -35,6 +36,7 @@ describe("normalizeTransactionRow", () => {
       responseCode: "0",
       responseMessage: "Operacion exitosa",
       apiReference: "api-token",
+      authorization: "125251",
     })
   })
 
@@ -55,12 +57,14 @@ describe("normalizeTransactionRow", () => {
         trequestid: "request-id",
         nombrenegocio: null,
         razonsocial: "Razon Fallback",
+        autorizacion: null,
       })
     ).toMatchObject({
       status: "failed",
       responseMessage: "Saldo insuficiente",
       apiReference: "request-id",
       visibleClientName: "Razon Fallback",
+      authorization: null,
     })
   })
 
@@ -81,6 +85,7 @@ describe("normalizeTransactionRow", () => {
         trequestid: null,
         nombrenegocio: "Tienda Norte",
         razonsocial: null,
+        autorizacion: null,
       }).occurredAt
     ).toBe("2026-06-03T10:00:00.000-06:00")
   })

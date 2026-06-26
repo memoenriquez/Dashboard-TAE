@@ -224,6 +224,7 @@ _Avoid_: producto completo, analitica avanzada
 - La tabla MVP muestra fecha/hora, estado, operador Telcel, producto, **Numero Telefonico**, **Monto Vendido**, **Cliente Visible** y **Referencia Transaccional**.
 - La **Referencia Transaccional** principal viene de `ticket`.
 - La **Referencia API** viene de `tokenTransaction` y se usa para diagnostico.
+- La **Autorizacion** viene de `autorizacion`, puede ser nula y se muestra como detalle/exportacion cuando exista.
 - El **Servicio API TAE** publica el flujo `getUserTransaction` -> `doTransaction` -> `checkTransaction`; ese flujo da contexto diagnostico, pero el dashboard MVP consulta `getTransactionsList`.
 - El `codigoRespuesta` publicado por el **Servicio API TAE** es la fuente del **Codigo de Respuesta** normalizado.
 - El **Servicio API TAE** publica `codigoRespuesta = "0"` como exito, `codigoRespuesta = "3"` como fracaso, y codigos `1`, `2`, `4`, `5`, `6`, `7`, `8`, `9` para estados o errores tecnicos de consulta; el MVP conserva solo **Transaccion Exitosa** y **Transaccion Fallida** como estados de negocio del dashboard.

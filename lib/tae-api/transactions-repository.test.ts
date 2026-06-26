@@ -159,6 +159,7 @@ const createTaeTransaction = (overrides: Partial<TaeTransactionFixture>) => ({
   tokenTransaction: "token-1",
   razonSocial: "Razon Social",
   nombreNegocio: "Negocio",
+  autorizacion: "125251",
   ...overrides,
 })
 
@@ -175,4 +176,5 @@ interface TaeTransactionFixture {
   tokenTransaction: string
   razonSocial: string
   nombreNegocio: string
+  autorizacion: string
 }

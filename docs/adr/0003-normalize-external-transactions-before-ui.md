@@ -1,6 +1,6 @@
 # Normalize external transactions before UI
 
-The dashboard will map rows from the TAE `getTransactionsList` API into a normalized transaction record before rendering KPIs, tables, detail views, or CSV exports. The normalized record uses `ticket` as the primary transaction reference, `cuentaID` as the external client id, `fechaHora` as the transaction timestamp, `telefono` as the destination phone number, `sku` and `producto` as product data, `monto` as sold amount, and `codigoRespuesta` as the source for normalizing success or failure.
+The dashboard will map rows from the TAE `getTransactionsList` API into a normalized transaction record before rendering KPIs, tables, detail views, or CSV exports. The normalized record uses `ticket` as the primary transaction reference, `cuentaID` as the external client id, `fechaHora` as the transaction timestamp, `telefono` as the destination phone number, `sku` and `producto` as product data, `monto` as sold amount, `codigoRespuesta` as the source for normalizing success or failure, and nullable `autorizacion` as provider authorization detail.
 
 We chose this instead of letting UI components and exports depend directly on the provider payload. The source contract is outside the dashboard's ownership, so a normalized contract keeps the product language stable, makes filters and CSV behavior consistent, isolates provider-specific changes to the backend mapping layer, and prevents raw technical fields like `descripcion`, `codigoRespuesta`, and `tokenTransaction` from becoming business concepts by accident.
 
@@ -14,6 +14,7 @@ We chose this instead of letting UI components and exports depend directly on th
 - `descripcion` is a response/diagnostic message, not canonical business status. The normalized response message should use it when present and remain null when absent.
 - The MVP has only one operator, Telcel, until a reliable multi-operator source or catalog exists.
 - `tokenTransaction` may support diagnostics, but it is not the primary user-facing transaction reference.
+- `autorizacion` may be null while the backend rolls out the field; UI and CSV must tolerate absence.
 - `monto` is the confirmed source for sold amount.
 - Balance consumed and commission remain future metrics and must not appear in MVP KPIs or primary table columns until the external source exposes reliable amount fields for them.
 - Product display comes from `producto`; `sku` remains the source SKU.
