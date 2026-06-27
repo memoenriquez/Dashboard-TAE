@@ -121,6 +121,9 @@ create index if not exists reconciliation_runs_owner_date_idx
   on public.reconciliation_runs (owner_client_id, reconciled_date desc);
 create index if not exists reconciliation_runs_status_idx
   on public.reconciliation_runs (status);
+create index if not exists reconciliation_runs_file_cleanup_idx
+  on public.reconciliation_runs (reconciled_date)
+  where storage_path is not null and file_deleted_at is null;
 create unique index if not exists profiles_single_internal_admin_idx
   on public.profiles ((is_internal_admin))
   where is_internal_admin = true;

@@ -14,6 +14,7 @@ type JsonRecord = Record<string, unknown>
 export interface ReconciliationRepository {
   listConfigs: () => Promise<ReconciliationConfig[]>
   listRuns: () => Promise<ReconciliationRun[]>
+  listRunsWithFilesBeforeDate: (date: string) => Promise<ReconciliationRun[]>
   getConfigByOwnerClientId: (ownerClientId: string) => Promise<ReconciliationConfig | null>
   upsertConfig: (input: ReconciliationConfigInput) => Promise<ReconciliationConfig>
   listRunsByOwnerClientId: (ownerClientId: string) => Promise<ReconciliationRun[]>
@@ -23,6 +24,7 @@ export interface ReconciliationRepository {
     reconciledDate: string
   }) => Promise<ReconciliationRun | null>
   createRun: (input: CreateReconciliationRunInput) => Promise<ReconciliationRun>
+  markRunFileDeleted: (input: { id: string; fileDeletedAt: string }) => Promise<void>
 }
 
 export const createReconciliationRepository = (
@@ -45,6 +47,21 @@ export const createReconciliationRepository = (
       .from("reconciliation_runs")
       .select("*")
       .order("reconciled_date", { ascending: false })
+
+    if (error) {
+      throw error
+    }
+
+    return ((data ?? []) as JsonRecord[]).map(mapRun)
+  },
+  listRunsWithFilesBeforeDate: async (date) => {
+    const { data, error } = await supabase
+      .from("reconciliation_runs")
+      .select("*")
+      .lt("reconciled_date", date)
+      .not("storage_path", "is", null)
+      .is("file_deleted_at", null)
+      .order("reconciled_date", { ascending: true })
 
     if (error) {
       throw error
@@ -158,6 +175,16 @@ export const createReconciliationRepository = (
     }
 
     return mapRun(data as JsonRecord)
+  },
+  markRunFileDeleted: async (input) => {
+    const { error } = await supabase
+      .from("reconciliation_runs")
+      .update({ file_deleted_at: input.fileDeletedAt })
+      .eq("id", input.id)
+
+    if (error) {
+      throw error
+    }
   },
 })
 

@@ -65,6 +65,8 @@ export function ReconciliationDashboard() {
   const selectedClientIdRef = useRef("")
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [generationDate, setGenerationDate] = useState(getYesterdayDate())
+  const [generationDateBounds] = useState(getGenerationDateBounds)
   const [form, setForm] = useState({
     isEnabled: false,
     reconciliationUsername: "",
@@ -151,18 +153,17 @@ export function ReconciliationDashboard() {
     }
   }
 
-  const generateYesterday = async () => {
+  const generateSelectedDate = async () => {
     if (!selectedClient) {
       return
     }
-    const date = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
     setIsSubmitting(true)
     const toastId = toast.loading("Generando archivo...")
     try {
       const response = await fetch("/api/reconciliations/generate", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ownerClientId: selectedClient.id, reconciledDate: date }),
+        body: JSON.stringify({ ownerClientId: selectedClient.id, reconciledDate: generationDate }),
       })
       if (!response.ok) {
         toast.error(await readApiErrorMessage(response, "No fue posible generar."), { id: toastId })
@@ -257,12 +258,25 @@ export function ReconciliationDashboard() {
                 <Input disabled={!isInternalAdmin} value={form.sftpPasswordSecretName} onChange={(event) => setForm({ ...form, sftpPasswordSecretName: event.target.value })} />
               </Field>
               {isInternalAdmin ? (
+                <Field>
+                  <FieldLabel>Fecha a generar</FieldLabel>
+                  <Input
+                    type="date"
+                    max={generationDateBounds.max}
+                    min={generationDateBounds.min}
+                    value={generationDate}
+                    onChange={(event) => setGenerationDate(event.target.value)}
+                  />
+                  <FieldDescription>Disponible para fechas dentro de los últimos 90 días.</FieldDescription>
+                </Field>
+              ) : null}
+              {isInternalAdmin ? (
                 <>
                   <Button type="submit" disabled={isSubmitting || isLoading || !selectedClient}>
                     <SaveIcon data-icon="inline-start" /> Guardar
                   </Button>
-                  <Button type="button" variant="outline" disabled={isSubmitting || !selectedConfig} onClick={generateYesterday}>
-                    <PlayIcon data-icon="inline-start" /> Generar ayer
+                  <Button type="button" variant="outline" disabled={isSubmitting || !selectedConfig} onClick={generateSelectedDate}>
+                    <PlayIcon data-icon="inline-start" /> Generar fecha
                   </Button>
                 </>
               ) : null}
@@ -312,4 +326,11 @@ const getConfigForm = (config?: ReconciliationConfigRecord) => ({
   sftpUsername: config?.sftpUsername ?? "",
   sftpRemotePath: config?.sftpRemotePath ?? "",
   sftpPasswordSecretName: config?.sftpPasswordSecretName ?? "",
+})
+
+const getYesterdayDate = () => new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
+
+const getGenerationDateBounds = () => ({
+  max: new Date().toISOString().slice(0, 10),
+  min: new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10),
 })

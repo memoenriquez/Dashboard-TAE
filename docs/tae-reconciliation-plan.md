@@ -193,6 +193,7 @@ POST   /api/reconciliations/runs/[id]/retry-send
 GET    /api/reconciliations/runs/[id]/download
 POST   /api/cron/reconciliations
 POST   /api/cron/reconciliations?clientId=...
+POST   /api/cron/reconciliations/cleanup
 ```
 
 Authorization:
@@ -215,6 +216,7 @@ Environment variables:
 ```text
 CRON_SECRET=
 RECONCILIATION_CRON_TIMEZONE=America/Mexico_City
+RECONCILIATION_RETENTION_DAYS=90
 ```
 
 Audit events:
@@ -274,6 +276,7 @@ Final PR boundaries are intentionally not fixed yet. At implementation time, cho
 - Internal validation flow: generate file in dashboard, download/review it, upload manually to the test destination when available, then internal operations decides whether to enable automatic upload.
 - No provider-validation gate is required in the product data model. Internal operations owns the decision to enable SFTP after its own testing.
 - Cleanup removes files older than 90 days through the Storage API and updates run metadata so stale files are no longer downloadable. Do not delete Storage objects with direct SQL against the `storage` schema.
+- Cleanup is triggered through `POST /api/cron/reconciliations/cleanup` with the same `CRON_SECRET` bearer authentication.
 - Cleanup keeps run metadata after deleting the stored file. Mark deleted files with `file_deleted_at`; downloads after retention should return a clear unavailable/expired response.
 - Internal operations owns failed generation, failed SFTP delivery, retry decisions, and provider escalation. Client users only see high-level status and downloadable evidence.
 - A failed run for one date does not block future daily runs for the same client.
