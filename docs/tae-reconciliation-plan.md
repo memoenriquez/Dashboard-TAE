@@ -11,7 +11,7 @@ This is the first technical slice for daily TAE reconciliation files. It follows
 - Viewer: internal admin plus parent/standalone client users for their own runs.
 - Cron: once daily at 03:00 Mexico City time, triggered by an external scheduler that calls this project's API.
 - Storage: private Supabase Storage bucket, not Postgres blobs.
-- Retention target: 90 days.
+- Retention target: 90 days, enforced by a scheduled cleanup that deletes objects through the Supabase Storage API.
 - SFTP upload requires a test SFTP destination before implementation is executed.
 - Test destination can be a provider sandbox SFTP or a `/test` folder in the real SFTP account.
 
@@ -67,6 +67,8 @@ create table public.reconciliation_runs (
   transaction_count integer not null default 0,
   total_amount numeric(12, 2) not null default 0,
   included_external_client_ids bigint[] not null default '{}',
+  send_attempt_count integer not null default 0,
+  last_send_error text,
   internal_error text,
   generated_at timestamptz,
   sent_at timestamptz,
@@ -134,6 +136,25 @@ Validation:
 - If any included transaction fails validation, mark `generation_failed` and do not upload/send.
 - If there are zero successful transactions, generate a header-only file.
 - Use CRLF (`\r\n`) line endings because the provider format is a `.TXT` file shown in a Windows/Notepad context.
+- Manual generation is limited to dates up to 90 days in the past.
+- `cutoff_timezone` must be one of the configured Mexican IANA timezones.
+
+Mexican timezones allowed in v1:
+
+```text
+America/Bahia_Banderas
+America/Cancun
+America/Chihuahua
+America/Ciudad_Juarez
+America/Hermosillo
+America/Matamoros
+America/Mazatlan
+America/Merida
+America/Mexico_City
+America/Monterrey
+America/Ojinaga
+America/Tijuana
+```
 
 Storage path:
 
@@ -199,6 +220,8 @@ Audit events:
 - `reconciliation_file_downloaded`
 - `reconciliation_sftp_retry_requested`
 
+Reconciliation download auditing should use the existing trusted audit pattern used by CSV export: write to `audit_events` through trusted server code, but do not fail an already authorized download solely because audit storage is unavailable.
+
 ## UI Shape
 
 Internal admin:
@@ -232,11 +255,32 @@ Child client:
 
 - If a run already exists for `owner_client_id + reconciled_date`, automatic cron must not regenerate or replace it. Return `already_exists` and use manual resend for the stored file.
 - Manual generation for an existing date should show the existing run instead of overwriting it in v1.
+- `generated` means the file exists in private storage and SFTP is disabled or no send attempt has completed yet.
+- SFTP retry updates the same run: increment `send_attempt_count`, update `last_send_error` on failure, and set `sent_at` on success.
 - Automatic SFTP upload must not overwrite an existing remote file. If the remote file exists, mark/send as failed with a clear internal error.
 - Retry send uses the stored file from private storage; it does not regenerate file contents.
 - A test SFTP destination must exist before enabling automatic SFTP upload in implementation.
 - Production SFTP should not be activated until connection, authentication, and upload have been validated against the test destination.
 - Provider validation flow: generate file in dashboard, download/review it, upload manually to the test destination, get provider confirmation, then enable automatic upload.
+- Cleanup removes files older than 90 days through the Storage API and updates run metadata so stale files are no longer downloadable. Do not delete Storage objects with direct SQL against the `storage` schema.
+
+## Reconciliation Query Limits
+
+The current interactive transaction repository has guardrails for dashboard reads: `TAE_FANOUT_MAX_ACCOUNTS`, `TAE_ACCOUNT_PAGE_SIZE`, `TAE_MAX_PAGES_PER_ACCOUNT`, and `TAE_FANOUT_MAX_ROWS`. Reconciliation should not silently inherit the interactive row cap as a business limit because a mandatory daily file can be larger than an interactive dashboard page.
+
+V1 recommendation:
+
+- Keep `TAE_FANOUT_MAX_ACCOUNTS` for owner scope protection.
+- Add reconciliation-specific limits, for example `RECONCILIATION_MAX_ACCOUNTS`, `RECONCILIATION_ACCOUNT_PAGE_SIZE`, `RECONCILIATION_MAX_PAGES_PER_ACCOUNT`, and `RECONCILIATION_MAX_ROWS`.
+- Default `RECONCILIATION_MAX_ROWS` higher than the interactive `10_000`, but still finite to avoid runaway jobs.
+- If the reconciliation limit is exceeded, mark the run `generation_failed` with a clear internal error. Do not create a partial file.
+- If real daily volumes approach the limit, move the generator to chunked file writing before raising limits again.
+
+Rejected for v1:
+
+- Partial reconciliation files.
+- Multiple files per client/day.
+- Ignoring row limits and building unbounded files in memory.
 
 ## Open Checks Before Coding
 
@@ -244,3 +288,4 @@ Child client:
 - Confirm cron provider and auth mechanism.
 - Confirm Supabase Storage bucket creation process.
 - Confirm test SFTP destination details before implementing upload.
+- Estimate expected maximum daily successful transactions per parent/standalone before choosing `RECONCILIATION_MAX_ROWS`.
