@@ -7,6 +7,7 @@ import { useState } from "react"
 import {
   BarChart3Icon,
   Building2Icon,
+  FileCheckIcon,
   GaugeIcon,
   LogOutIcon,
   NetworkIcon,
@@ -36,6 +37,7 @@ import { createClient } from "@/lib/supabase/client"
 
 const operationItems = [
   { href: "/dashboard", label: "Transacciones", icon: ReceiptTextIcon },
+  { href: "/dashboard/reconciliations", label: "Conciliaciones", icon: FileCheckIcon },
 ]
 
 const adminItems = [
