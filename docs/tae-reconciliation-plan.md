@@ -271,7 +271,8 @@ Final PR boundaries are intentionally not fixed yet. At implementation time, cho
 - Retry send uses the stored file from private storage; it does not regenerate file contents.
 - A test SFTP destination must exist before enabling automatic SFTP upload in implementation.
 - Production SFTP should not be activated until connection, authentication, and upload have been validated against the test destination.
-- Provider validation flow: generate file in dashboard, download/review it, upload manually to the test destination, get provider confirmation, then enable automatic upload.
+- Internal validation flow: generate file in dashboard, download/review it, upload manually to the test destination when available, then internal operations decides whether to enable automatic upload.
+- No provider-validation gate is required in the product data model. Internal operations owns the decision to enable SFTP after its own testing.
 - Cleanup removes files older than 90 days through the Storage API and updates run metadata so stale files are no longer downloadable. Do not delete Storage objects with direct SQL against the `storage` schema.
 - Cleanup keeps run metadata after deleting the stored file. Mark deleted files with `file_deleted_at`; downloads after retention should return a clear unavailable/expired response.
 - Internal operations owns failed generation, failed SFTP delivery, retry decisions, and provider escalation. Client users only see high-level status and downloadable evidence.
