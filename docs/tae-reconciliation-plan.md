@@ -11,6 +11,7 @@ This plan is still in definition mode. It documents the intended product and tec
 - Non-configurable clients: `child`; included through parent group membership.
 - Editor: internal admin only.
 - Viewer: internal admin plus parent/standalone client users for their own runs.
+- Operational owner: internal admin / operations owns daily failures and SFTP retries.
 - Cron: once daily at 03:00 Mexico City time, triggered by an external scheduler that calls this project's API.
 - Storage: private Supabase Storage bucket, not Postgres blobs.
 - Retention target: 90 days, enforced by a scheduled cleanup that deletes objects through the Supabase Storage API.
@@ -238,6 +239,7 @@ Client parent/standalone:
 - Masked config summary.
 - Run history table.
 - Action: download.
+- No retry, SFTP edit, or technical-error access.
 
 Child client:
 
@@ -267,6 +269,7 @@ Final PR boundaries are intentionally not fixed yet. At implementation time, cho
 - Production SFTP should not be activated until connection, authentication, and upload have been validated against the test destination.
 - Provider validation flow: generate file in dashboard, download/review it, upload manually to the test destination, get provider confirmation, then enable automatic upload.
 - Cleanup removes files older than 90 days through the Storage API and updates run metadata so stale files are no longer downloadable. Do not delete Storage objects with direct SQL against the `storage` schema.
+- Internal operations owns failed generation, failed SFTP delivery, retry decisions, and provider escalation. Client users only see high-level status and downloadable evidence.
 
 ## Reconciliation Query Limits
 
