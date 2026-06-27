@@ -278,6 +278,8 @@ Final PR boundaries are intentionally not fixed yet. At implementation time, cho
 
 The current interactive transaction repository has guardrails for dashboard reads: `TAE_FANOUT_MAX_ACCOUNTS`, `TAE_ACCOUNT_PAGE_SIZE`, `TAE_MAX_PAGES_PER_ACCOUNT`, and `TAE_FANOUT_MAX_ROWS`. Reconciliation should not silently inherit the interactive row cap as a business limit because a mandatory daily file can be larger than an interactive dashboard page.
 
+`getTransactionsList` is expected to support full-day reconciliation volume when queried correctly in batches. The reconciliation generator must page per external account and never assume a single API response contains the full day.
+
 V1 recommendation:
 
 - Keep `TAE_FANOUT_MAX_ACCOUNTS` for owner scope protection.
@@ -311,3 +313,9 @@ Expected execution flow:
 3. Apply schema changes through MCP migrations where appropriate.
 4. Create or document manual Storage bucket setup, depending on Supabase support and operational preference.
 5. Create/rotate real Vault secrets only through an explicit secret-management step; do not expose decrypted secrets in logs, docs, or normal tool output.
+
+Implementation decision: when build starts, actually apply approved schema/policy changes through the Supabase MCP and keep `docs/supabase-reference.sql` updated as reference documentation.
+
+## Runtime Checks Before SFTP Upload
+
+SFTP upload must run in a Node.js server runtime, not an Edge runtime. Before implementing upload, verify the deployed host supports the selected SFTP library, outbound TCP connections to port 22, secret access at runtime, and enough execution time for file upload. Keep upload code server-only.
