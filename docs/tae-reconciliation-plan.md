@@ -13,6 +13,7 @@ This is the first technical slice for daily TAE reconciliation files. It follows
 - Storage: private Supabase Storage bucket, not Postgres blobs.
 - Retention target: 90 days.
 - SFTP upload requires a test SFTP destination before implementation is executed.
+- Test destination can be a provider sandbox SFTP or a `/test` folder in the real SFTP account.
 
 ## Supabase Objects
 
@@ -132,12 +133,21 @@ Validation:
 - `occurredAt` must fall inside the reconciled day for the config `cutoff_timezone`.
 - If any included transaction fails validation, mark `generation_failed` and do not upload/send.
 - If there are zero successful transactions, generate a header-only file.
+- Use CRLF (`\r\n`) line endings because the provider format is a `.TXT` file shown in a Windows/Notepad context.
 
 Storage path:
 
 ```text
 {owner_client_id}/{yyyy}/{MM}/{filename}
 ```
+
+Remote SFTP path:
+
+```text
+{sftp_remote_path}/{filename}
+```
+
+Do not create date subfolders on the provider SFTP in v1. Many provider SFTP accounts expect a fixed folder and may not allow directory creation.
 
 ## Backend Shape
 
@@ -226,6 +236,7 @@ Child client:
 - Retry send uses the stored file from private storage; it does not regenerate file contents.
 - A test SFTP destination must exist before enabling automatic SFTP upload in implementation.
 - Production SFTP should not be activated until connection, authentication, and upload have been validated against the test destination.
+- Provider validation flow: generate file in dashboard, download/review it, upload manually to the test destination, get provider confirmation, then enable automatic upload.
 
 ## Open Checks Before Coding
 
