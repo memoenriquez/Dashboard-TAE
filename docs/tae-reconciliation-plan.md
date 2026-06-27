@@ -2,6 +2,8 @@
 
 This is the first technical slice for daily TAE reconciliation files. It follows `CONTEXT.md` and `docs/adr/0006-tae-reconciliation-files.md`.
 
+This plan is still in definition mode. It documents the intended product and technical shape, but it does not lock the first implementation PR scope yet. Review the plan again immediately before implementation and choose the smallest safe vertical slice based on the environment, test SFTP availability, and current dashboard state.
+
 ## Scope
 
 - Route: `/dashboard/reconciliations`.
@@ -243,6 +245,8 @@ Child client:
 
 ## Implementation Order
 
+Final PR boundaries are intentionally not fixed yet. At implementation time, choose the smallest slice that proves the workflow without weakening audit, storage, or authorization rules.
+
 1. Add SQL reference and storage bucket instructions.
 2. Add types and repository methods for configs/runs.
 3. Add file builder with small tests.
@@ -289,3 +293,15 @@ Rejected for v1:
 - Confirm Supabase Storage bucket creation process.
 - Confirm test SFTP destination details before implementing upload.
 - Estimate expected maximum daily successful transactions per parent/standalone before choosing `RECONCILIATION_MAX_ROWS`.
+
+## Supabase Infra Execution
+
+No Supabase infrastructure should be created during planning. When implementation starts, schema changes, storage bucket setup, Vault secret creation, and policy changes can be applied through the Supabase MCP after explicit approval and after reviewing the current production/project state.
+
+Expected execution flow:
+
+1. Inspect current Supabase tables, extensions, storage, and policies.
+2. Confirm exact SQL/storage/Vault changes with the operator.
+3. Apply schema changes through MCP migrations where appropriate.
+4. Create or document manual Storage bucket setup, depending on Supabase support and operational preference.
+5. Create/rotate real Vault secrets only through an explicit secret-management step; do not expose decrypted secrets in logs, docs, or normal tool output.
