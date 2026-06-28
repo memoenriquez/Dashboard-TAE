@@ -33,11 +33,16 @@ export const parseReconciliationConfigInput = (
     throw new ReconciliationValidationError("Invalid SFTP port")
   }
 
+  const isEnabled = body.isEnabled === true
   const sftpEnabled = body.sftpEnabled === true
   const sftpHost = parseOptionalString(body.sftpHost)
   const sftpUsername = parseOptionalString(body.sftpUsername)
   const sftpRemotePath = parseOptionalString(body.sftpRemotePath)
   const sftpPasswordSecretName = parseOptionalString(body.sftpPasswordSecretName)
+
+  if (sftpEnabled && !isEnabled) {
+    throw new ReconciliationValidationError("Daily file generation must be enabled before SFTP delivery")
+  }
 
   if (sftpEnabled && (!sftpHost || !sftpUsername || !sftpRemotePath || !sftpPasswordSecretName)) {
     throw new ReconciliationValidationError("SFTP host, user, remote path, and Vault secret are required")
@@ -45,7 +50,7 @@ export const parseReconciliationConfigInput = (
 
   return {
     ownerClientId,
-    isEnabled: body.isEnabled === true,
+    isEnabled,
     reconciliationUsername,
     cutoffTimezone,
     filenameTimeDifference,

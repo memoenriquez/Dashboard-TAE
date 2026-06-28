@@ -46,6 +46,8 @@ Runtime tuning values:
 
 Use a random password-manager generated value for `CRON_SECRET`; it is only compared by the cron routes and is not stored in the database.
 
+For protected preview deployments, include `x-vercel-protection-bypass: <VERCEL_AUTOMATION_BYPASS_SECRET>` when manually smoke-testing cron routes. Generation responses report whether each run was `created` or `reused`; reused runs are not regenerated or resent.
+
 ## Verification
 
 ```bash

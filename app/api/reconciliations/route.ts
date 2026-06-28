@@ -39,9 +39,17 @@ export const GET = withApiErrorHandling(async () => {
     })
 })
 
-const maskClientConfig = <TConfig extends { sftpPasswordSecretName: string | null }>(
+const maskClientConfig = <TConfig extends {
+  sftpHost: string | null
+  sftpUsername: string | null
+  sftpRemotePath: string | null
+  sftpPasswordSecretName: string | null
+}>(
   config: TConfig
 ): TConfig => ({
   ...config,
+  sftpHost: config.sftpHost ? "configured" : null,
+  sftpUsername: config.sftpUsername ? "configured" : null,
+  sftpRemotePath: config.sftpRemotePath ? "configured" : null,
   sftpPasswordSecretName: config.sftpPasswordSecretName ? "configured" : null,
 })

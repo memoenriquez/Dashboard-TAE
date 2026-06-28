@@ -2,7 +2,7 @@
 
 The dashboard will support daily TAE reconciliation files as an operational feature under `/dashboard/reconciliations`. A reconciliation configuration belongs only to a parent client or a standalone client. Child clients are included in their parent file and do not have separate SFTP configuration or reconciliation history in the first version.
 
-Internal administrators can create and edit reconciliation configuration, test the SFTP connection, retry sends, and see technical errors. Client users for parent or standalone clients can see masked configuration, run history, delivery status, and download generated files. Child users do not get a separate reconciliation section because the file format does not identify child origin per line.
+Internal administrators can create and edit reconciliation configuration, test the SFTP connection, retry sends, and see technical errors. Client users for parent or standalone clients can see business-friendly run history, delivery status, and download generated files, without SFTP credentials or internal error details. Child users do not get a separate reconciliation section because the file format does not identify child origin per line.
 
 Each active configuration stores a reconciliation username for the `[Usuario]` filename segment, the business cutoff timezone used to choose the reconciled calendar day, the provider-specific filename difference value, and optional SFTP delivery settings. The filename difference is not treated as a universal timezone offset because providers may define their own base.
 
