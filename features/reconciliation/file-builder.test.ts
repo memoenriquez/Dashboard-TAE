@@ -71,7 +71,7 @@ describe("createReconciliationFile", () => {
         cutoffTimezone: "America/Chihuahua",
         transactions: [{ ...baseTransaction, authorization: null }],
       })
-    ).toThrow(ReconciliationFileError)
+    ).toThrow("Invalid reconciliation data (1): Invalid authorization for transaction ticket-1")
   })
 
   it("rejects successful transactions outside the reconciled date", () => {

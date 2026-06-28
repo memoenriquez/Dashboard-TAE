@@ -13,9 +13,25 @@ export const createReconciliationFile = (
   input: ReconciliationFileInput
 ): ReconciliationFileResult => {
   const dateStamp = formatDateStamp(input.reconciledDate, input.cutoffTimezone)
-  const details = input.transactions
-    .filter((transaction) => transaction.status === "successful")
-    .map((transaction) => formatDetailLine(transaction, dateStamp, input.cutoffTimezone))
+  const successfulTransactions = input.transactions.filter(
+    (transaction) => transaction.status === "successful"
+  )
+  const validationErrors = successfulTransactions
+    .map((transaction) => validateTransaction(transaction, dateStamp, input.cutoffTimezone))
+    .filter((error): error is string => Boolean(error))
+
+  if (validationErrors.length > 0) {
+    const shownErrors = validationErrors.slice(0, 10).join("; ")
+    const suffix = validationErrors.length > 10 ? `; +${validationErrors.length - 10} more` : ""
+
+    throw new ReconciliationFileError(
+      `Invalid reconciliation data (${validationErrors.length}): ${shownErrors}${suffix}`
+    )
+  }
+
+  const details = successfulTransactions.map((transaction) =>
+    formatDetailLine(transaction, dateStamp)
+  )
   const filename = `${input.reconciliationUsername}_${dateStamp}_TAE_${input.filenameTimeDifference}.txt`
   const lines = [`HDR${dateStamp}`, ...details]
 
@@ -31,34 +47,37 @@ export const createReconciliationFile = (
   }
 }
 
-const formatDetailLine = (
+const validateTransaction = (
   transaction: NormalizedTransactionRecord,
   dateStamp: string,
   cutoffTimezone: string
 ) => {
   if (!isTenDigitValue(transaction.phoneNumber)) {
-    throw new ReconciliationFileError(
-      `Invalid phone number for transaction ${transaction.ticket}`
-    )
+    return `Invalid phone number for transaction ${transaction.ticket}`
   }
 
   const authorization = transaction.authorization?.trim() ?? ""
   if (!/^\d{1,10}$/.test(authorization)) {
-    throw new ReconciliationFileError(
-      `Invalid authorization for transaction ${transaction.ticket}`
-    )
+    return `Invalid authorization for transaction ${transaction.ticket}`
   }
 
   if (!Number.isInteger(transaction.soldAmount) || transaction.soldAmount < 0 || transaction.soldAmount > 9999) {
-    throw new ReconciliationFileError(`Invalid amount for transaction ${transaction.ticket}`)
+    return `Invalid amount for transaction ${transaction.ticket}`
   }
 
   const transactionDateStamp = formatDateStamp(new Date(transaction.occurredAt), cutoffTimezone)
   if (transactionDateStamp !== dateStamp) {
-    throw new ReconciliationFileError(
-      `Transaction ${transaction.ticket} is outside reconciled date`
-    )
+    return `Transaction ${transaction.ticket} is outside reconciled date`
   }
+
+  return null
+}
+
+const formatDetailLine = (
+  transaction: NormalizedTransactionRecord,
+  dateStamp: string
+) => {
+  const authorization = transaction.authorization?.trim() ?? ""
 
   return `${transaction.phoneNumber}${authorization.padStart(10, "0")}${dateStamp}${String(transaction.soldAmount).padStart(4, "0")}`
 }

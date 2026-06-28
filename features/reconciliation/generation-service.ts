@@ -71,7 +71,16 @@ export const generateReconciliationRun = async (input: {
       transactions,
     })
   } catch (error) {
-    throw toGenerationError(error)
+    const generationError = toGenerationError(error)
+    await createFailedRun({
+      configId: config.id,
+      ownerClientId: input.ownerClient.id,
+      reconciledDate: input.reconciledDate,
+      externalClientIds,
+      error: generationError,
+      repository: input.reconciliationRepository,
+    })
+    throw generationError
   }
   const [year, month] = input.reconciledDate.split("-")
   const storagePath = `${input.ownerClient.id}/${year}/${month}/${file.filename}`
@@ -83,7 +92,18 @@ export const generateReconciliationRun = async (input: {
     })
 
   if (uploadError) {
-    throw new ReconciliationGenerationError(`No fue posible guardar el archivo: ${uploadError.message}`)
+    const generationError = new ReconciliationGenerationError(
+      `No fue posible guardar el archivo: ${uploadError.message}`
+    )
+    await createFailedRun({
+      configId: config.id,
+      ownerClientId: input.ownerClient.id,
+      reconciledDate: input.reconciledDate,
+      externalClientIds,
+      error: generationError,
+      repository: input.reconciliationRepository,
+    })
+    throw generationError
   }
 
   return input.reconciliationRepository.createRun({
@@ -135,6 +155,32 @@ const listIncludedExternalClientIds = async (input: {
 const getPositiveIntegerEnv = (name: string, fallback: number) => {
   const value = Number(process.env[name] ?? fallback)
   return Number.isInteger(value) && value > 0 ? value : fallback
+}
+
+const createFailedRun = async (input: {
+  configId: string
+  ownerClientId: string
+  reconciledDate: string
+  externalClientIds: number[]
+  error: Error
+  repository: ReconciliationRepository
+}) => {
+  try {
+    await input.repository.createRun({
+      configId: input.configId,
+      ownerClientId: input.ownerClientId,
+      reconciledDate: input.reconciledDate,
+      filename: null,
+      storagePath: null,
+      status: "generation_failed",
+      transactionCount: 0,
+      totalAmount: 0,
+      includedExternalClientIds: input.externalClientIds,
+      internalError: input.error.message,
+    })
+  } catch {
+    // The original generation error is more useful than a failed error-record insert.
+  }
 }
 
 const toGenerationError = (error: unknown) => {
