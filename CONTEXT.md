@@ -180,6 +180,42 @@ _Avoid_: endpoint directo de la API TAE, consulta desde el navegador a la fuente
 Descarga de transacciones filtradas para el alcance permitido del usuario.
 _Avoid_: reporte oficial, conciliacion automatica
 
+**Conciliacion TAE**:
+Proceso operativo diario que genera evidencia de transacciones exitosas de tiempo aire para una cuenta conciliable y, cuando aplica, deposita el archivo en un SFTP externo.
+_Avoid_: exportacion CSV, reporte interactivo, copia transaccional
+
+**Cuenta Conciliable**:
+Cliente que puede tener configuracion propia de conciliacion: **Cliente Padre** o cliente `standalone`.
+_Avoid_: cliente hijo configurable, usuario del dashboard
+
+**Configuracion de Conciliacion**:
+Metadata administrada por un **Administrador Interno** para una **Cuenta Conciliable**: activacion, usuario de conciliacion, zona de corte, diferencia en nombre de archivo y datos SFTP.
+_Avoid_: preferencias de usuario final, configuracion por sucursal
+
+**Usuario de Conciliacion**:
+Identificador capturado manualmente que se escribe como `[Usuario]` en el nombre del archivo de conciliacion.
+_Avoid_: display name, external client id automatico, correo de usuario
+
+**Archivo de Conciliacion**:
+Archivo TXT de ancho fijo generado para una fecha conciliada; contiene un encabezado y solo transacciones exitosas incluidas en el alcance de la cuenta conciliable.
+_Avoid_: CSV, archivo regenerable al vuelo, reporte editable
+
+**Ejecucion de Conciliacion**:
+Registro de una generacion diaria o manual de archivo, con estado, totales, ruta de storage, alcance incluido y resultado de envio SFTP.
+_Avoid_: transaccion individual, log tecnico suelto
+
+**SFTP de Conciliacion**:
+Destino externo opcional donde el dashboard deposita el archivo generado para una cuenta conciliable.
+_Avoid_: storage interno, descarga manual del dashboard
+
+**Zona de Corte**:
+Zona horaria de negocio usada para calcular el dia calendario conciliado de una cuenta.
+_Avoid_: zona del servidor, codigo del proveedor
+
+**Diferencia en Nombre de Archivo**:
+Valor textual exigido por el proveedor para el ultimo segmento del nombre del archivo, independiente de la zona tecnica del servidor.
+_Avoid_: offset dinamico universal, conversion automatica entre proveedores
+
 **Contrato de Prototipo**:
 Documento tecnico que fija el primer corte implementable, rutas internas, tablas, variables y criterios de demo del prototipo.
 _Avoid_: PRD completo, documentacion de usuario final
@@ -203,6 +239,14 @@ _Avoid_: producto completo, analitica avanzada
 - Un **Cliente Hijo** solo puede consultar transacciones asociadas a su propio **External Client ID**.
 - El **Alcance de Consulta** de un **Cliente Padre** incluye su propio **External Client ID** y los **External Client ID** de sus clientes hijos.
 - El **Cliente Visible** se muestra en tabla, filtros y **Exportacion CSV** cuando el usuario puede consultar mas de un cliente.
+- Una **Cuenta Conciliable** puede ser un **Cliente Padre** o un cliente `standalone`; un **Cliente Hijo** no configura conciliacion propia.
+- La **Conciliacion TAE** de un **Cliente Padre** incluye los **External Client ID** activos de sus **Clientes Hijos** al momento de generar la **Ejecucion de Conciliacion**.
+- La **Conciliacion TAE** de un cliente `standalone` incluye solo su propio **External Client ID**.
+- La **Configuracion de Conciliacion** se edita solo por **Administrador Interno**; usuarios de cliente pueden consultar configuracion enmascarada, historial y descargar archivos permitidos.
+- La **Zona de Corte** determina el dia conciliado; la **Diferencia en Nombre de Archivo** se guarda como valor de proveedor y no se deriva de la zona del servidor.
+- El **Archivo de Conciliacion** se genera una vez, se conserva como evidencia en storage privado y se descarga desde esa misma evidencia.
+- La **Base del Dashboard** almacena metadata de **Ejecucion de Conciliacion**, no una copia autoritativa de transacciones externas.
+- Un **Archivo de Conciliacion** valido contiene solo **Transaccion Exitosa**; si faltan datos obligatorios, la ejecucion falla y no se envia por SFTP.
 - Una **Transaccion de Tiempo Aire** pertenece a exactamente un **External Client ID** en la fuente externa.
 - Una **Transaccion de Tiempo Aire** tiene estado **Transaccion Exitosa** o **Transaccion Fallida**.
 - La **Transaccion Exitosa** se deriva cuando `codigoRespuesta = '0'`.

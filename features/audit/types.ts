@@ -3,6 +3,10 @@ export type AuditEventType =
   | "permission_changed"
   | "client_mapping_changed"
   | "internal_admin_accessed"
+  | "reconciliation_config_changed"
+  | "reconciliation_file_generated"
+  | "reconciliation_file_downloaded"
+  | "reconciliation_sftp_retry_requested"
 
 export interface AuditEvent {
   id: string
