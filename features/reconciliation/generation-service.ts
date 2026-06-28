@@ -9,6 +9,7 @@ import type { ReconciliationRepository } from "@/lib/supabase/reconciliation-rep
 
 import { ReconciliationGenerationError } from "./errors"
 import { createReconciliationFile } from "./file-builder"
+import { uploadReconciliationFileToSftp } from "./sftp-service"
 import type { ReconciliationRun } from "./types"
 
 const BUCKET = "reconciliation-files"
@@ -106,7 +107,7 @@ export const generateReconciliationRun = async (input: {
     throw generationError
   }
 
-  return input.reconciliationRepository.createRun({
+  const run = await input.reconciliationRepository.createRun({
     configId: config.id,
     ownerClientId: input.ownerClient.id,
     reconciledDate: input.reconciledDate,
@@ -118,6 +119,72 @@ export const generateReconciliationRun = async (input: {
     includedExternalClientIds: externalClientIds,
     generatedAt: new Date().toISOString(),
   })
+
+  if (!config.sftpEnabled) {
+    return run
+  }
+
+  try {
+    await uploadReconciliationFileToSftp({
+      config,
+      content: file.content,
+      filename: file.filename,
+    })
+
+    return input.reconciliationRepository.updateSendResult({
+      id: run.id,
+      sentAt: new Date().toISOString(),
+      status: "sent",
+    })
+  } catch (error) {
+    return input.reconciliationRepository.updateSendResult({
+      id: run.id,
+      lastSendError: error instanceof Error ? error.message : "SFTP upload failed",
+      status: "send_failed",
+    })
+  }
+}
+
+export const retryReconciliationSftpSend = async (input: {
+  reconciliationRepository: ReconciliationRepository
+  run: ReconciliationRun
+  supabase: SupabaseClient
+}) => {
+  if (!input.run.filename || !input.run.storagePath || input.run.fileDeletedAt) {
+    throw new ReconciliationGenerationError("Reconciliation file is not available")
+  }
+
+  const config = await input.reconciliationRepository.getConfigByOwnerClientId(
+    input.run.ownerClientId
+  )
+  if (!config || !config.sftpEnabled) {
+    throw new ReconciliationGenerationError("SFTP is not enabled for this reconciliation")
+  }
+
+  const { data, error } = await input.supabase.storage.from(BUCKET).download(input.run.storagePath)
+  if (error) {
+    throw new ReconciliationGenerationError(`No fue posible leer el archivo: ${error.message}`)
+  }
+
+  try {
+    await uploadReconciliationFileToSftp({
+      config,
+      content: await data.text(),
+      filename: input.run.filename,
+    })
+
+    return input.reconciliationRepository.updateSendResult({
+      id: input.run.id,
+      sentAt: new Date().toISOString(),
+      status: "sent",
+    })
+  } catch (error) {
+    return input.reconciliationRepository.updateSendResult({
+      id: input.run.id,
+      lastSendError: error instanceof Error ? error.message : "SFTP upload failed",
+      status: "send_failed",
+    })
+  }
 }
 
 const listIncludedExternalClientIds = async (input: {

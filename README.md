@@ -18,6 +18,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 Server-only values:
 
 - `SUPABASE_SECRET_KEY`
+- `SUPABASE_DB_URL` for server-only Vault reads
 - `TAE_API_BASE_URL`
 - `TAE_API_KEY`
 

@@ -62,7 +62,7 @@ const assertAllowedReconciledDate = (value: string) => {
   const minUtc = todayUtc - 90 * 86_400_000
   const valueUtc = date.getTime()
 
-  if (Number.isNaN(valueUtc) || valueUtc > todayUtc || valueUtc < minUtc) {
-    throw new DashboardValidationError("Reconciled date must be within the last 90 days")
+  if (Number.isNaN(valueUtc) || valueUtc >= todayUtc || valueUtc < minUtc) {
+    throw new DashboardValidationError("Reconciled date must be a fully passed date within the last 90 days")
   }
 }

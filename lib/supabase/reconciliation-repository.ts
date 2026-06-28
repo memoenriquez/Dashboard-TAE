@@ -7,6 +7,7 @@ import type {
   ReconciliationConfig,
   ReconciliationConfigInput,
   ReconciliationRun,
+  UpdateReconciliationSendResultInput,
 } from "@/features/reconciliation/types"
 
 type JsonRecord = Record<string, unknown>
@@ -25,6 +26,7 @@ export interface ReconciliationRepository {
   }) => Promise<ReconciliationRun | null>
   createRun: (input: CreateReconciliationRunInput) => Promise<ReconciliationRun>
   markRunFileDeleted: (input: { id: string; fileDeletedAt: string }) => Promise<void>
+  updateSendResult: (input: UpdateReconciliationSendResultInput) => Promise<ReconciliationRun>
 }
 
 export const createReconciliationRepository = (
@@ -185,6 +187,27 @@ export const createReconciliationRepository = (
     if (error) {
       throw error
     }
+  },
+  updateSendResult: async (input) => {
+    const existing = await createReconciliationRepository(supabase).getRunById(input.id)
+
+    const { data, error } = await supabase
+      .from("reconciliation_runs")
+      .update({
+        last_send_error: input.lastSendError ?? null,
+        send_attempt_count: (existing?.sendAttemptCount ?? 0) + 1,
+        sent_at: input.sentAt ?? null,
+        status: input.status,
+      })
+      .eq("id", input.id)
+      .select("*")
+      .single()
+
+    if (error) {
+      throw error
+    }
+
+    return mapRun(data as JsonRecord)
   },
 })
 

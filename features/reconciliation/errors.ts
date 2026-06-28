@@ -4,3 +4,10 @@ export class ReconciliationGenerationError extends Error {
     this.name = "ReconciliationGenerationError"
   }
 }
+
+export class ReconciliationSftpError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "ReconciliationSftpError"
+  }
+}

@@ -33,18 +33,28 @@ export const parseReconciliationConfigInput = (
     throw new ReconciliationValidationError("Invalid SFTP port")
   }
 
+  const sftpEnabled = body.sftpEnabled === true
+  const sftpHost = parseOptionalString(body.sftpHost)
+  const sftpUsername = parseOptionalString(body.sftpUsername)
+  const sftpRemotePath = parseOptionalString(body.sftpRemotePath)
+  const sftpPasswordSecretName = parseOptionalString(body.sftpPasswordSecretName)
+
+  if (sftpEnabled && (!sftpHost || !sftpUsername || !sftpRemotePath || !sftpPasswordSecretName)) {
+    throw new ReconciliationValidationError("SFTP host, user, remote path, and Vault secret are required")
+  }
+
   return {
     ownerClientId,
     isEnabled: body.isEnabled === true,
     reconciliationUsername,
     cutoffTimezone,
     filenameTimeDifference,
-    sftpEnabled: body.sftpEnabled === true,
-    sftpHost: parseOptionalString(body.sftpHost),
+    sftpEnabled,
+    sftpHost,
     sftpPort,
-    sftpUsername: parseOptionalString(body.sftpUsername),
-    sftpRemotePath: parseOptionalString(body.sftpRemotePath),
-    sftpPasswordSecretName: parseOptionalString(body.sftpPasswordSecretName),
+    sftpUsername,
+    sftpRemotePath,
+    sftpPasswordSecretName,
   }
 }
 

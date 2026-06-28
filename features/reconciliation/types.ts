@@ -75,6 +75,13 @@ export interface ReconciliationRun {
   createdAt: string
 }
 
+export interface UpdateReconciliationSendResultInput {
+  id: string
+  lastSendError?: string | null
+  sentAt?: string | null
+  status: "sent" | "send_failed"
+}
+
 export interface CreateReconciliationRunInput {
   configId: string
   ownerClientId: string

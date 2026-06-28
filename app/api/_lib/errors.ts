@@ -4,7 +4,7 @@ import {
   DashboardInvitationValidationError,
 } from "@/features/auth/invitations"
 import { AdminValidationError } from "@/features/clients/admin-validation"
-import { ReconciliationGenerationError } from "@/features/reconciliation/errors"
+import { ReconciliationGenerationError, ReconciliationSftpError } from "@/features/reconciliation/errors"
 import { ReconciliationFileError } from "@/features/reconciliation/file-builder"
 import { ReconciliationValidationError } from "@/features/reconciliation/validation"
 
@@ -40,6 +40,7 @@ export const toApiErrorResponse = (error: unknown) => {
     error instanceof DashboardInvitationValidationError ||
     error instanceof ReconciliationFileError ||
     error instanceof ReconciliationGenerationError ||
+    error instanceof ReconciliationSftpError ||
     error instanceof ReconciliationValidationError
   ) {
     return Response.json({ error: error.message }, { status: 400 })

@@ -7,7 +7,9 @@ import {
   DownloadIcon,
   FileTextIcon,
   PlayIcon,
+  RefreshCwIcon,
   SaveIcon,
+  ServerIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -55,6 +57,7 @@ interface ReconciliationRunRecord {
   transactionCount: number
   totalAmount: number
   fileDeletedAt: string | null
+  lastSendError?: string | null
   internalError?: string | null
 }
 
@@ -174,10 +177,60 @@ export function ReconciliationDashboard() {
         await loadData()
         return
       }
-      toast.success("Archivo generado.", { id: toastId })
+      const payload = (await response.json()) as { run: ReconciliationRunRecord }
+      showRunResultToast(payload.run, toastId, "Archivo generado.")
       await loadData()
     } catch {
       toast.error("No fue posible generar en este momento.", { id: toastId })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const testSftp = async () => {
+    if (!selectedClient) {
+      return
+    }
+    setIsSubmitting(true)
+    const toastId = toast.loading("Probando conexión SFTP...")
+    try {
+      const response = await fetch("/api/reconciliations/config/test-sftp", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ownerClientId: selectedClient.id }),
+      })
+
+      if (!response.ok) {
+        toast.error(await readApiErrorMessage(response, "No fue posible conectar al SFTP."), { id: toastId })
+        return
+      }
+
+      toast.success("Conexión SFTP exitosa.", { id: toastId })
+    } catch {
+      toast.error("No fue posible probar SFTP en este momento.", { id: toastId })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const retrySftpSend = async (run: ReconciliationRunRecord) => {
+    setIsSubmitting(true)
+    const toastId = toast.loading(`${getSftpActionLabel(run.status)}...`)
+    try {
+      const response = await fetch(`/api/reconciliations/runs/${run.id}/retry-send`, {
+        method: "POST",
+      })
+
+      if (!response.ok) {
+        toast.error(await readApiErrorMessage(response, "No fue posible reenviar."), { id: toastId })
+        return
+      }
+
+      const payload = (await response.json()) as { run: ReconciliationRunRecord }
+      showRunResultToast(payload.run, toastId, "Envío SFTP finalizado.")
+      await loadData()
+    } catch {
+      toast.error("No fue posible reintentar el envío en este momento.", { id: toastId })
     } finally {
       setIsSubmitting(false)
     }
@@ -244,6 +297,7 @@ export function ReconciliationDashboard() {
             onGenerate={generateSelectedDate}
             onGenerationDateChange={setGenerationDate}
             onSubmit={saveConfig}
+            onTestSftp={testSftp}
           />
         ) : (
           <ClientSummaryCard client={selectedClient} config={selectedConfig ?? null} />
@@ -252,6 +306,8 @@ export function ReconciliationDashboard() {
         <RunHistoryCard
           client={selectedClient}
           isInternalAdmin={isInternalAdmin}
+          isSubmitting={isSubmitting}
+          onRetrySend={retrySftpSend}
           runs={selectedRuns}
         />
       </div>
@@ -309,6 +365,7 @@ function AdminConfigCard(props: {
   onGenerate: () => void
   onGenerationDateChange: (value: string) => void
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void
+  onTestSftp: () => void
 }) {
   const mode = props.config ? "edit" : "create"
 
@@ -376,12 +433,15 @@ function AdminConfigCard(props: {
               <Field>
                 <FieldLabel>Generar archivo manual</FieldLabel>
                 <Input type="date" max={props.generationDateBounds.max} min={props.generationDateBounds.min} value={props.generationDate} onChange={(event) => props.onGenerationDateChange(event.target.value)} />
-                <FieldDescription>Disponible para fechas dentro de los últimos 90 días.</FieldDescription>
+                <FieldDescription>Disponible para fechas ya cerradas dentro de los últimos 90 días.</FieldDescription>
               </Field>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button type="submit" disabled={props.isSubmitting || props.isLoading || !props.client}>
                 <SaveIcon data-icon="inline-start" /> {mode === "edit" ? "Guardar cambios" : "Crear configuración"}
+              </Button>
+              <Button type="button" variant="outline" disabled={props.isSubmitting || !props.config} onClick={props.onTestSftp}>
+                <ServerIcon data-icon="inline-start" /> Probar SFTP
               </Button>
               <Button type="button" variant="outline" disabled={props.isSubmitting || !props.canGenerate} onClick={props.onGenerate}>
                 <PlayIcon data-icon="inline-start" /> Generar fecha
@@ -440,6 +500,8 @@ function ClientSummaryCard(props: {
 function RunHistoryCard(props: {
   client?: ClientRecord
   isInternalAdmin: boolean
+  isSubmitting: boolean
+  onRetrySend: (run: ReconciliationRunRecord) => void
   runs: ReconciliationRunRecord[]
 }) {
   const [selectedErrorRun, setSelectedErrorRun] = useState<ReconciliationRunRecord | null>(null)
@@ -469,7 +531,7 @@ function RunHistoryCard(props: {
                     <TableCell>{formatCurrency(run.totalAmount)}</TableCell>
                     {props.isInternalAdmin ? (
                       <TableCell>
-                        {run.internalError ? (
+                        {getRunError(run) ? (
                           <Button
                             size="sm"
                             type="button"
@@ -483,7 +545,16 @@ function RunHistoryCard(props: {
                         )}
                       </TableCell>
                     ) : null}
-                    <TableCell>{run.filename && !run.fileDeletedAt ? <Button size="sm" variant="outline" render={<a href={`/api/reconciliations/runs/${run.id}/download`}><DownloadIcon data-icon="inline-start" /> Descargar</a>} /> : <span className="text-xs text-muted-foreground">No disponible</span>}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-2">
+                        {run.filename && !run.fileDeletedAt ? <Button size="sm" variant="outline" render={<a href={`/api/reconciliations/runs/${run.id}/download`}><DownloadIcon data-icon="inline-start" /> Descargar</a>} /> : <span className="text-xs text-muted-foreground">No disponible</span>}
+                        {props.isInternalAdmin && run.filename && !run.fileDeletedAt && (run.status === "generated" || run.status === "sent" || run.status === "send_failed") ? (
+                          <Button size="sm" type="button" variant="outline" disabled={props.isSubmitting} onClick={() => props.onRetrySend(run)}>
+                            <RefreshCwIcon data-icon="inline-start" /> {getSftpActionLabel(run.status)}
+                          </Button>
+                        ) : null}
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -508,7 +579,7 @@ function RunHistoryCard(props: {
                 <SummaryItem label="Archivo" value={selectedErrorRun.filename ?? "No disponible"} />
               </div>
               <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-lg border bg-background p-3 text-xs leading-relaxed text-foreground">
-                {selectedErrorRun.internalError}
+                {getRunError(selectedErrorRun)}
               </pre>
             </div>
           ) : null}
@@ -555,6 +626,37 @@ const getStatusLabel = (status: ReconciliationRunRecord["status"]) => {
   return "Falló generación"
 }
 
+const getSftpActionLabel = (status: ReconciliationRunRecord["status"]) => {
+  if (status === "generated") {
+    return "Enviar a SFTP"
+  }
+  if (status === "sent") {
+    return "Reenviar a SFTP"
+  }
+  return "Reintentar SFTP"
+}
+
+const getRunError = (run: ReconciliationRunRecord) => run.internalError || run.lastSendError || null
+
+const showRunResultToast = (run: ReconciliationRunRecord, toastId: string | number, fallback: string) => {
+  if (run.status === "sent") {
+    toast.success("Archivo generado y enviado a SFTP.", { id: toastId })
+    return
+  }
+
+  if (run.status === "send_failed") {
+    toast.error(`Archivo generado, pero falló el envío SFTP: ${run.lastSendError ?? "revisa el detalle."}`, { id: toastId })
+    return
+  }
+
+  if (run.status === "generation_failed") {
+    toast.error(`Falló la generación: ${run.internalError ?? "revisa el detalle."}`, { id: toastId })
+    return
+  }
+
+  toast.success(fallback, { id: toastId })
+}
+
 const maskValue = (value: string | null) => {
   if (!value) {
     return "No configurado"
@@ -584,6 +686,6 @@ const getConfigForm = (config?: ReconciliationConfigRecord) => ({
 const getYesterdayDate = () => new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
 
 const getGenerationDateBounds = () => ({
-  max: new Date().toISOString().slice(0, 10),
+  max: getYesterdayDate(),
   min: new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10),
 })
