@@ -191,8 +191,11 @@ POST   /api/reconciliations/config/test-sftp
 POST   /api/reconciliations/generate
 POST   /api/reconciliations/runs/[id]/retry-send
 GET    /api/reconciliations/runs/[id]/download
+GET    /api/cron/reconciliations
 POST   /api/cron/reconciliations
+GET    /api/cron/reconciliations?clientId=...
 POST   /api/cron/reconciliations?clientId=...
+GET    /api/cron/reconciliations/cleanup
 POST   /api/cron/reconciliations/cleanup
 ```
 
@@ -201,10 +204,19 @@ Authorization:
 - `PATCH config`, `test-sftp`, `generate`, `retry-send`, and cron endpoint require internal admin or trusted cron secret.
 - `download` requires internal admin or owner parent/standalone user.
 - `GET` returns masked SFTP data for clients.
-- `POST /api/cron/reconciliations` processes all enabled configurations.
-- `POST /api/cron/reconciliations?clientId=...` processes one enabled parent/standalone client for protected operational/debug runs.
+- `GET /api/cron/reconciliations` processes all enabled configurations from Vercel Cron.
+- `POST /api/cron/reconciliations` is kept for protected manual/local operational runs.
+- `GET` or `POST /api/cron/reconciliations?clientId=...` processes one enabled parent/standalone client for protected operational/debug runs.
 
-Cron portability:
+Vercel Cron:
+
+- `vercel.json` schedules `/api/cron/reconciliations` at `0 7 * * *` UTC.
+- `vercel.json` schedules `/api/cron/reconciliations/cleanup` at `0 8 * * *` UTC.
+- Vercel Cron always calls `GET` and sends `Authorization: Bearer <CRON_SECRET>` when the `CRON_SECRET` environment variable exists.
+- Cron schedules are UTC. Keep `RECONCILIATION_CRON_TIMEZONE=America/Mexico_City` so the generated reconciliation date is computed from the business timezone.
+- Use a password-manager generated random string of at least 16 characters for `CRON_SECRET`; it is only a shared bearer token between Vercel and these routes.
+
+Manual/local protected runs:
 
 ```http
 POST /api/cron/reconciliations
@@ -214,7 +226,7 @@ Authorization: Bearer <CRON_SECRET>
 Environment variables:
 
 ```text
-CRON_SECRET=
+CRON_SECRET=<random password-manager generated value>
 RECONCILIATION_CRON_TIMEZONE=America/Mexico_City
 RECONCILIATION_RETENTION_DAYS=90
 ```
@@ -276,7 +288,7 @@ Final PR boundaries are intentionally not fixed yet. At implementation time, cho
 - Internal validation flow: generate file in dashboard, download/review it, upload manually to the test destination when available, then internal operations decides whether to enable automatic upload.
 - No provider-validation gate is required in the product data model. Internal operations owns the decision to enable SFTP after its own testing.
 - Cleanup removes files older than 90 days through the Storage API and updates run metadata so stale files are no longer downloadable. Do not delete Storage objects with direct SQL against the `storage` schema.
-- Cleanup is triggered through `POST /api/cron/reconciliations/cleanup` with the same `CRON_SECRET` bearer authentication.
+- Cleanup is triggered through `GET` by Vercel Cron or `POST` manually at `/api/cron/reconciliations/cleanup` with the same `CRON_SECRET` bearer authentication.
 - Cleanup keeps run metadata after deleting the stored file. Mark deleted files with `file_deleted_at`; downloads after retention should return a clear unavailable/expired response.
 - Internal operations owns failed generation, failed SFTP delivery, retry decisions, and provider escalation. Client users only see high-level status and downloadable evidence.
 - A failed run for one date does not block future daily runs for the same client.

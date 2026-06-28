@@ -9,54 +9,57 @@ import { withApiErrorHandling } from "../../_lib/api-route"
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
-export const POST = withApiErrorHandling(async (request: Request) => {
-    assertCronSecret(request)
+const handleCron = withApiErrorHandling(async (request: Request) => {
+  assertCronSecret(request)
 
-    const url = new URL(request.url)
-    const requestedClientId = url.searchParams.get("clientId")
-    const adminClient = createAdminClient()
-    const metadataRepository = createDashboardMetadataRepository(adminClient)
-    const reconciliationRepository = createReconciliationRepository(adminClient)
-    const configs = (await reconciliationRepository.listConfigs())
-      .filter((config) => config.isEnabled)
-      .filter((config) => !requestedClientId || config.ownerClientId === requestedClientId)
+  const url = new URL(request.url)
+  const requestedClientId = url.searchParams.get("clientId")
+  const adminClient = createAdminClient()
+  const metadataRepository = createDashboardMetadataRepository(adminClient)
+  const reconciliationRepository = createReconciliationRepository(adminClient)
+  const configs = (await reconciliationRepository.listConfigs())
+    .filter((config) => config.isEnabled)
+    .filter((config) => !requestedClientId || config.ownerClientId === requestedClientId)
 
-    if (requestedClientId && configs.length === 0) {
-      throw new DashboardValidationError("No enabled reconciliation config found")
-    }
+  if (requestedClientId && configs.length === 0) {
+    throw new DashboardValidationError("No enabled reconciliation config found")
+  }
 
-    const reconciledDate = getYesterdayDate(
-      process.env.RECONCILIATION_CRON_TIMEZONE ?? "America/Mexico_City"
-    )
-    const results = []
+  const reconciledDate = getYesterdayDate(
+    process.env.RECONCILIATION_CRON_TIMEZONE ?? "America/Mexico_City"
+  )
+  const results = []
 
-    for (const config of configs) {
-      try {
-        const ownerClient = await metadataRepository.getClientById(config.ownerClientId)
-        if (!ownerClient || ownerClient.clientKind === "child") {
-          results.push({ ownerClientId: config.ownerClientId, status: "skipped" })
-          continue
-        }
-
-        const run = await generateReconciliationRun({
-          ownerClient,
-          reconciledDate,
-          metadataRepository,
-          reconciliationRepository,
-          supabase: adminClient,
-        })
-        results.push({ ownerClientId: config.ownerClientId, runId: run.id, status: run.status })
-      } catch (error) {
-        results.push({
-          ownerClientId: config.ownerClientId,
-          error: error instanceof Error ? error.message : "Unexpected error",
-          status: "failed",
-        })
+  for (const config of configs) {
+    try {
+      const ownerClient = await metadataRepository.getClientById(config.ownerClientId)
+      if (!ownerClient || ownerClient.clientKind === "child") {
+        results.push({ ownerClientId: config.ownerClientId, status: "skipped" })
+        continue
       }
-    }
 
-    return Response.json({ reconciledDate, results })
+      const run = await generateReconciliationRun({
+        ownerClient,
+        reconciledDate,
+        metadataRepository,
+        reconciliationRepository,
+        supabase: adminClient,
+      })
+      results.push({ ownerClientId: config.ownerClientId, runId: run.id, status: run.status })
+    } catch (error) {
+      results.push({
+        ownerClientId: config.ownerClientId,
+        error: error instanceof Error ? error.message : "Unexpected error",
+        status: "failed",
+      })
+    }
+  }
+
+  return Response.json({ reconciledDate, results })
 })
+
+export const GET = handleCron
+export const POST = handleCron
 
 const assertCronSecret = (request: Request) => {
   const expected = process.env.CRON_SECRET

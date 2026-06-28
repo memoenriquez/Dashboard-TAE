@@ -9,35 +9,38 @@ export const runtime = "nodejs"
 
 const BUCKET = "reconciliation-files"
 
-export const POST = withApiErrorHandling(async (request: Request) => {
-    assertCronSecret(request)
+const handleCron = withApiErrorHandling(async (request: Request) => {
+  assertCronSecret(request)
 
-    const adminClient = createAdminClient()
-    const repository = createReconciliationRepository(adminClient)
-    const cutoffDate = getCutoffDate(getRetentionDays())
-    const runs = await repository.listRunsWithFilesBeforeDate(cutoffDate)
-    const results = []
+  const adminClient = createAdminClient()
+  const repository = createReconciliationRepository(adminClient)
+  const cutoffDate = getCutoffDate(getRetentionDays())
+  const runs = await repository.listRunsWithFilesBeforeDate(cutoffDate)
+  const results = []
 
-    for (const run of runs) {
-      if (!run.storagePath) {
-        continue
-      }
-
-      const { error } = await adminClient.storage.from(BUCKET).remove([run.storagePath])
-      if (error) {
-        results.push({ runId: run.id, status: "failed", error: error.message })
-        continue
-      }
-
-      await repository.markRunFileDeleted({
-        id: run.id,
-        fileDeletedAt: new Date().toISOString(),
-      })
-      results.push({ runId: run.id, status: "deleted" })
+  for (const run of runs) {
+    if (!run.storagePath) {
+      continue
     }
 
-    return Response.json({ cutoffDate, results })
+    const { error } = await adminClient.storage.from(BUCKET).remove([run.storagePath])
+    if (error) {
+      results.push({ runId: run.id, status: "failed", error: error.message })
+      continue
+    }
+
+    await repository.markRunFileDeleted({
+      id: run.id,
+      fileDeletedAt: new Date().toISOString(),
+    })
+    results.push({ runId: run.id, status: "deleted" })
+  }
+
+  return Response.json({ cutoffDate, results })
 })
+
+export const GET = handleCron
+export const POST = handleCron
 
 const assertCronSecret = (request: Request) => {
   const expected = process.env.CRON_SECRET
