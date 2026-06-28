@@ -42,31 +42,37 @@ export const generateReconciliationRun = async (input: {
     ownerClient: input.ownerClient,
     repository: input.metadataRepository,
   })
-  const transactions = await createTaeApiTransactionRepository({
-    maxAccounts: getPositiveIntegerEnv("RECONCILIATION_MAX_ACCOUNTS", 50),
-    pageSizePerAccount: getPositiveIntegerEnv("RECONCILIATION_ACCOUNT_PAGE_SIZE", 500),
-    maxPagesPerAccount: getPositiveIntegerEnv("RECONCILIATION_MAX_PAGES_PER_ACCOUNT", 200),
-    maxRows: getPositiveIntegerEnv("RECONCILIATION_MAX_ROWS", 50_000),
-  }).listTransactions({
-    scope: { type: "external_client_ids", externalClientIds },
-    filters: {
-      from: new Date(`${input.reconciledDate}T00:00:00.000Z`),
-      to: new Date(`${input.reconciledDate}T00:00:00.000Z`),
-      status: "successful",
-      phoneNumber: null,
-      operatorName: "Telcel",
-      reference: null,
-    },
-    page: 1,
-    pageSize: Number.MAX_SAFE_INTEGER,
-  })
-  const file = createReconciliationFile({
-    reconciliationUsername: config.reconciliationUsername,
-    filenameTimeDifference: config.filenameTimeDifference,
-    reconciledDate: new Date(`${input.reconciledDate}T12:00:00.000Z`),
-    cutoffTimezone: config.cutoffTimezone,
-    transactions,
-  })
+  let file
+
+  try {
+    const transactions = await createTaeApiTransactionRepository({
+      maxAccounts: getPositiveIntegerEnv("RECONCILIATION_MAX_ACCOUNTS", 50),
+      pageSizePerAccount: getPositiveIntegerEnv("RECONCILIATION_ACCOUNT_PAGE_SIZE", 500),
+      maxPagesPerAccount: getPositiveIntegerEnv("RECONCILIATION_MAX_PAGES_PER_ACCOUNT", 200),
+      maxRows: getPositiveIntegerEnv("RECONCILIATION_MAX_ROWS", 50_000),
+    }).listTransactions({
+      scope: { type: "external_client_ids", externalClientIds },
+      filters: {
+        from: new Date(`${input.reconciledDate}T00:00:00.000Z`),
+        to: new Date(`${input.reconciledDate}T00:00:00.000Z`),
+        status: "successful",
+        phoneNumber: null,
+        operatorName: "Telcel",
+        reference: null,
+      },
+      page: 1,
+      pageSize: Number.MAX_SAFE_INTEGER,
+    })
+    file = createReconciliationFile({
+      reconciliationUsername: config.reconciliationUsername,
+      filenameTimeDifference: config.filenameTimeDifference,
+      reconciledDate: new Date(`${input.reconciledDate}T12:00:00.000Z`),
+      cutoffTimezone: config.cutoffTimezone,
+      transactions,
+    })
+  } catch (error) {
+    throw toGenerationError(error)
+  }
   const [year, month] = input.reconciledDate.split("-")
   const storagePath = `${input.ownerClient.id}/${year}/${month}/${file.filename}`
   const { error: uploadError } = await input.supabase.storage
@@ -77,7 +83,7 @@ export const generateReconciliationRun = async (input: {
     })
 
   if (uploadError) {
-    throw uploadError
+    throw new ReconciliationGenerationError(`No fue posible guardar el archivo: ${uploadError.message}`)
   }
 
   return input.reconciliationRepository.createRun({
@@ -129,4 +135,16 @@ const listIncludedExternalClientIds = async (input: {
 const getPositiveIntegerEnv = (name: string, fallback: number) => {
   const value = Number(process.env[name] ?? fallback)
   return Number.isInteger(value) && value > 0 ? value : fallback
+}
+
+const toGenerationError = (error: unknown) => {
+  if (error instanceof ReconciliationGenerationError) {
+    return error
+  }
+
+  if (error instanceof Error) {
+    return new ReconciliationGenerationError(`No fue posible generar el archivo: ${error.message}`)
+  }
+
+  return new ReconciliationGenerationError("No fue posible generar el archivo")
 }

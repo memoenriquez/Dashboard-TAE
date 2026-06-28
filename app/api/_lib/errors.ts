@@ -5,6 +5,7 @@ import {
 } from "@/features/auth/invitations"
 import { AdminValidationError } from "@/features/clients/admin-validation"
 import { ReconciliationGenerationError } from "@/features/reconciliation/errors"
+import { ReconciliationFileError } from "@/features/reconciliation/file-builder"
 import { ReconciliationValidationError } from "@/features/reconciliation/validation"
 
 export class DashboardUnauthorizedError extends Error {
@@ -37,6 +38,7 @@ export const toApiErrorResponse = (error: unknown) => {
   if (
     error instanceof AdminValidationError ||
     error instanceof DashboardInvitationValidationError ||
+    error instanceof ReconciliationFileError ||
     error instanceof ReconciliationGenerationError ||
     error instanceof ReconciliationValidationError
   ) {
