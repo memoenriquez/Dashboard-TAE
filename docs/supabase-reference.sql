@@ -305,21 +305,11 @@ for select
 to authenticated
 using ((select private.is_internal_admin()));
 
-create policy "Reconciliation configs are readable by owner clients or internal admins"
+create policy "Reconciliation configs are readable by internal admins"
 on public.reconciliation_configs
 for select
 to authenticated
-using (
-  (select private.is_internal_admin())
-  or exists (
-    select 1
-    from public.profiles p
-    join public.clients c on c.id = p.client_id
-    where p.id = (select auth.uid())
-      and p.client_id = reconciliation_configs.owner_client_id
-      and c.client_kind in ('parent', 'standalone')
-  )
-);
+using ((select private.is_internal_admin()));
 
 create policy "Reconciliation configs are insertable by internal admins"
 on public.reconciliation_configs
@@ -340,21 +330,11 @@ for delete
 to authenticated
 using ((select private.is_internal_admin()));
 
-create policy "Reconciliation runs are readable by owner clients or internal admins"
+create policy "Reconciliation runs are readable by internal admins"
 on public.reconciliation_runs
 for select
 to authenticated
-using (
-  (select private.is_internal_admin())
-  or exists (
-    select 1
-    from public.profiles p
-    join public.clients c on c.id = p.client_id
-    where p.id = (select auth.uid())
-      and p.client_id = reconciliation_runs.owner_client_id
-      and c.client_kind in ('parent', 'standalone')
-  )
-);
+using ((select private.is_internal_admin()));
 
 create policy "Reconciliation runs are insertable by internal admins"
 on public.reconciliation_runs

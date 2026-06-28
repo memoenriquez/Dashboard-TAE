@@ -84,7 +84,7 @@ create table public.reconciliation_runs (
 RLS intent:
 
 - Internal admins can read and mutate configs/runs.
-- Client users can read runs/configs only for their own parent/standalone client.
+- Client users receive sanitized runs/config state only through trusted dashboard API routes; direct Supabase reads for reconciliation configs/runs are internal-admin only because the tables contain operational metadata.
 - Child users cannot read reconciliation rows unless we later add an explicit view.
 - Writes happen through trusted server code after authorization.
 
@@ -142,6 +142,7 @@ Validation:
 - Use CRLF (`\r\n`) line endings because the provider format is a `.TXT` file shown in a Windows/Notepad context.
 - Manual generation is limited to dates up to 90 days in the past.
 - `cutoff_timezone` must be one of the configured Mexican IANA timezones.
+- `reconciliation_username` and `filename_time_difference` are filename/SFTP path segments and must be validated before storage or download: username allows only ASCII letters, numbers, `_`, and `-` up to 40 chars; filename difference allows an optional leading `-` and 1-3 digits.
 
 Mexican timezones allowed in v1:
 
@@ -203,7 +204,7 @@ Authorization:
 
 - `PATCH config`, `test-sftp`, `generate`, `retry-send`, and cron endpoint require internal admin or trusted cron secret.
 - `download` requires internal admin or owner parent/standalone user.
-- `GET` returns masked SFTP metadata for clients; the client UI should not display SFTP technical configuration.
+- `GET` returns sanitized reconciliation config/run data for clients; the client UI should not display SFTP technical configuration or internal errors.
 - `GET /api/cron/reconciliations` processes all enabled configurations from Vercel Cron.
 - `POST /api/cron/reconciliations` is kept for protected manual/local operational runs.
 - `GET` or `POST /api/cron/reconciliations?clientId=...` processes one enabled parent/standalone client for protected operational/debug runs.

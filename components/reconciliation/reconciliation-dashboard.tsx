@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { MEXICAN_TIMEZONES } from "@/features/reconciliation/types"
 import { readApiErrorMessage } from "@/lib/api/client-error"
 
 interface ClientRecord {
@@ -60,15 +61,6 @@ interface ReconciliationRunRecord {
   lastSendError?: string | null
   internalError?: string | null
 }
-
-const timezones = [
-  "America/Mexico_City",
-  "America/Chihuahua",
-  "America/Tijuana",
-  "America/Cancun",
-  "America/Hermosillo",
-  "America/Mazatlan",
-]
 
 export function ReconciliationDashboard() {
   const [clients, setClients] = useState<ClientRecord[]>([])
@@ -503,7 +495,7 @@ function AdminConfigCard(props: {
                 <FieldLabel>Zona de corte</FieldLabel>
                 <Select value={props.form.cutoffTimezone} onValueChange={(value) => props.onFormChange({ ...props.form, cutoffTimezone: value ?? props.form.cutoffTimezone })}>
                   <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
-                  <SelectContent>{timezones.map((timezone) => <SelectItem key={timezone} value={timezone}>{timezone}</SelectItem>)}</SelectContent>
+                  <SelectContent>{MEXICAN_TIMEZONES.map((timezone) => <SelectItem key={timezone} value={timezone}>{timezone}</SelectItem>)}</SelectContent>
                 </Select>
               </Field>
               <Field>

@@ -54,9 +54,14 @@ export const GET = withApiErrorHandling(
 
     return new Response(data, {
       headers: {
-        "content-disposition": `attachment; filename=${run.filename}`,
+        "content-disposition": getContentDisposition(run.filename),
         "content-type": "text/plain; charset=utf-8",
       },
     })
   }
 )
+
+const getContentDisposition = (filename: string) => {
+  const fallback = filename.replace(/[^A-Za-z0-9._-]/g, "_")
+  return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+}

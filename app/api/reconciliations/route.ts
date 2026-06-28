@@ -34,7 +34,7 @@ export const GET = withApiErrorHandling(async () => {
     return Response.json({
       clients: [client],
       configs: config ? [maskClientConfig(config)] : [],
-      runs,
+      runs: runs.map(maskClientRun),
       isInternalAdmin: false,
     })
 })
@@ -52,4 +52,26 @@ const maskClientConfig = <TConfig extends {
   sftpUsername: config.sftpUsername ? "configured" : null,
   sftpRemotePath: config.sftpRemotePath ? "configured" : null,
   sftpPasswordSecretName: config.sftpPasswordSecretName ? "configured" : null,
+})
+
+const maskClientRun = <TRun extends {
+  id: string
+  ownerClientId: string
+  reconciledDate: string
+  filename: string | null
+  status: string
+  transactionCount: number
+  totalAmount: number
+  fileDeletedAt: string | null
+}>(run: TRun) => ({
+  id: run.id,
+  ownerClientId: run.ownerClientId,
+  reconciledDate: run.reconciledDate,
+  filename: run.filename,
+  status: run.status,
+  transactionCount: run.transactionCount,
+  totalAmount: run.totalAmount,
+  fileDeletedAt: run.fileDeletedAt,
+  lastSendError: null,
+  internalError: null,
 })

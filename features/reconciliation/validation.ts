@@ -24,6 +24,14 @@ export const parseReconciliationConfigInput = (
     body.filenameTimeDifference,
     "Missing filename time difference"
   )
+
+  if (!/^[A-Za-z0-9_-]{1,40}$/.test(reconciliationUsername)) {
+    throw new ReconciliationValidationError("Invalid reconciliation username")
+  }
+
+  if (!/^-?\d{1,3}$/.test(filenameTimeDifference)) {
+    throw new ReconciliationValidationError("Invalid filename time difference")
+  }
   const sftpPort =
     body.sftpPort === undefined || body.sftpPort === null || body.sftpPort === ""
       ? 22

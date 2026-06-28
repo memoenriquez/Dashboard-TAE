@@ -104,6 +104,13 @@ export const generateReconciliationRunResult = async (input: {
     })
 
   if (uploadError) {
+    if (isConflictError(uploadError)) {
+      const existing = await waitForExistingRun(input)
+      if (existing) {
+        return { run: existing, reused: true, sftpAttempted: false }
+      }
+    }
+
     const generationError = new ReconciliationGenerationError(
       `No fue posible guardar el archivo: ${uploadError.message}`
     )
@@ -118,18 +125,30 @@ export const generateReconciliationRunResult = async (input: {
     throw generationError
   }
 
-  const run = await input.reconciliationRepository.createRun({
-    configId: config.id,
-    ownerClientId: input.ownerClient.id,
-    reconciledDate: input.reconciledDate,
-    filename: file.filename,
-    storagePath,
-    status: "generated",
-    transactionCount: file.transactionCount,
-    totalAmount: file.totalAmount,
-    includedExternalClientIds: externalClientIds,
-    generatedAt: new Date().toISOString(),
-  })
+  let run: ReconciliationRun
+  try {
+    run = await input.reconciliationRepository.createRun({
+      configId: config.id,
+      ownerClientId: input.ownerClient.id,
+      reconciledDate: input.reconciledDate,
+      filename: file.filename,
+      storagePath,
+      status: "generated",
+      transactionCount: file.transactionCount,
+      totalAmount: file.totalAmount,
+      includedExternalClientIds: externalClientIds,
+      generatedAt: new Date().toISOString(),
+    })
+  } catch (error) {
+    if (isConflictError(error)) {
+      const existing = await waitForExistingRun(input)
+      if (existing) {
+        return { run: existing, reused: true, sftpAttempted: false }
+      }
+    }
+
+    throw error
+  }
 
   if (!config.sftpEnabled) {
     return { run, reused: false, sftpAttempted: false }
@@ -241,6 +260,40 @@ const listIncludedExternalClientIds = async (input: {
 const getPositiveIntegerEnv = (name: string, fallback: number) => {
   const value = Number(process.env[name] ?? fallback)
   return Number.isInteger(value) && value > 0 ? value : fallback
+}
+
+const waitForExistingRun = async (input: {
+  ownerClient: Client
+  reconciledDate: string
+  reconciliationRepository: ReconciliationRepository
+}) => {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const existingRun = await input.reconciliationRepository.getRunByOwnerAndDate({
+      ownerClientId: input.ownerClient.id,
+      reconciledDate: input.reconciledDate,
+    })
+
+    if (existingRun) {
+      return existingRun
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+
+  return null
+}
+
+const isConflictError = (error: unknown) => {
+  if (!error || typeof error !== "object") {
+    return false
+  }
+
+  const record = error as { code?: unknown; message?: unknown; status?: unknown; statusCode?: unknown }
+  const code = String(record.code ?? "")
+  const status = String(record.status ?? record.statusCode ?? "")
+  const message = String(record.message ?? "")
+
+  return code === "23505" || status === "409" || /already exists|duplicate/i.test(message)
 }
 
 const createFailedRun = async (input: {
