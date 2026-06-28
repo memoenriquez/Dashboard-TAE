@@ -1,5 +1,5 @@
 import { recordAuditEvent } from "@/features/audit/audit-service"
-import { generateReconciliationRun } from "@/features/reconciliation/generation-service"
+import { generateReconciliationRunResult } from "@/features/reconciliation/generation-service"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createReconciliationRepository } from "@/lib/supabase/reconciliation-repository"
 
@@ -28,13 +28,14 @@ export const POST = withApiErrorHandling(async (request: Request) => {
     }
 
     const adminClient = createAdminClient()
-    const run = await generateReconciliationRun({
+    const result = await generateReconciliationRunResult({
       ownerClient,
       reconciledDate,
       metadataRepository: context.metadataRepository,
       reconciliationRepository: createReconciliationRepository(adminClient),
       supabase: adminClient,
     })
+    const { run } = result
 
     await recordAuditEvent({
       repository: context.metadataRepository,
@@ -52,7 +53,7 @@ export const POST = withApiErrorHandling(async (request: Request) => {
       },
     })
 
-    return Response.json({ run })
+    return Response.json({ run, reused: result.reused, created: !result.reused, sftpAttempted: result.sftpAttempted })
 })
 
 const assertAllowedReconciledDate = (value: string) => {

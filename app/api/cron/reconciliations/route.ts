@@ -1,4 +1,4 @@
-import { generateReconciliationRun } from "@/features/reconciliation/generation-service"
+import { generateReconciliationRunResult } from "@/features/reconciliation/generation-service"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createDashboardMetadataRepository } from "@/lib/supabase/metadata-repository"
 import { createReconciliationRepository } from "@/lib/supabase/reconciliation-repository"
@@ -38,14 +38,22 @@ const handleCron = withApiErrorHandling(async (request: Request) => {
         continue
       }
 
-      const run = await generateReconciliationRun({
+      const result = await generateReconciliationRunResult({
         ownerClient,
         reconciledDate,
         metadataRepository,
         reconciliationRepository,
         supabase: adminClient,
       })
-      results.push({ ownerClientId: config.ownerClientId, runId: run.id, status: run.status })
+      results.push({
+        ownerClientId: config.ownerClientId,
+        client: ownerClient.displayName,
+        runId: result.run.id,
+        status: result.run.status,
+        created: !result.reused,
+        reused: result.reused,
+        sftpAttempted: result.sftpAttempted,
+      })
     } catch (error) {
       results.push({
         ownerClientId: config.ownerClientId,

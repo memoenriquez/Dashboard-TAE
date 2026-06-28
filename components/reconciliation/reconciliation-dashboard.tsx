@@ -79,6 +79,8 @@ export function ReconciliationDashboard() {
   const selectedClientIdRef = useRef("")
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [dismissedExceptionIds, setDismissedExceptionIds] = useState<string[]>([])
+  const [showAllExceptions, setShowAllExceptions] = useState(false)
   const [generationDate, setGenerationDate] = useState(getYesterdayDate)
   const [generationDateBounds] = useState(getGenerationDateBounds)
   const [form, setForm] = useState(getConfigForm)
@@ -90,9 +92,10 @@ export function ReconciliationDashboard() {
     ? runs.filter((run) => run.ownerClientId === selectedClient.id)
     : []
   const hasConfig = Boolean(selectedConfig)
-  const failedRuns = selectedRuns.filter(
-    (run) => run.status === "generation_failed" || run.status === "send_failed"
+  const exceptionRuns = getExceptionRuns(runs, configs).filter(
+    (run) => !dismissedExceptionIds.includes(run.id)
   )
+  const dismissedExceptionCount = getExceptionRuns(runs, configs).length - exceptionRuns.length
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
@@ -177,8 +180,12 @@ export function ReconciliationDashboard() {
         await loadData()
         return
       }
-      const payload = (await response.json()) as { run: ReconciliationRunRecord }
-      showRunResultToast(payload.run, toastId, "Archivo generado.")
+      const payload = (await response.json()) as { run: ReconciliationRunRecord; reused: boolean }
+      if (payload.reused) {
+        toast.info("Ya existía un archivo para esa fecha. No se generó ni reenvió.", { id: toastId })
+      } else {
+        showRunResultToast(payload.run, toastId, "Archivo generado.")
+      }
       await loadData()
     } catch {
       toast.error("No fue posible generar en este momento.", { id: toastId })
@@ -214,6 +221,10 @@ export function ReconciliationDashboard() {
   }
 
   const retrySftpSend = async (run: ReconciliationRunRecord) => {
+    if (run.status === "sent" && !window.confirm("Este archivo ya fue enviado. ¿Quieres intentar enviarlo otra vez?")) {
+      return
+    }
+
     setIsSubmitting(true)
     const toastId = toast.loading(`${getSftpActionLabel(run.status)}...`)
     try {
@@ -227,7 +238,7 @@ export function ReconciliationDashboard() {
       }
 
       const payload = (await response.json()) as { run: ReconciliationRunRecord }
-      showRunResultToast(payload.run, toastId, "Envío SFTP finalizado.")
+      showRunResultToast(payload.run, toastId, "Archivo enviado a SFTP.")
       await loadData()
     } catch {
       toast.error("No fue posible reintentar el envío en este momento.", { id: toastId })
@@ -272,14 +283,18 @@ export function ReconciliationDashboard() {
         />
       ) : null}
 
-      {failedRuns.length > 0 ? (
-        <Alert variant="destructive">
-          <AlertCircleIcon />
-          <AlertTitle>Requiere atención</AlertTitle>
-          <AlertDescription>
-            Hay {failedRuns.length} ejecución{failedRuns.length === 1 ? "" : "es"} fallida{failedRuns.length === 1 ? "" : "s"} para {selectedClient?.displayName}. Revisa el historial para ver el detalle.
-          </AlertDescription>
-        </Alert>
+      {isInternalAdmin ? (
+        <ExceptionQueue
+          clients={clients}
+          configs={configs}
+          dismissedCount={dismissedExceptionCount}
+          isSubmitting={isSubmitting}
+          onDismiss={(runId) => setDismissedExceptionIds((ids) => [...ids, runId])}
+          onRetrySend={retrySftpSend}
+          onShowAllChange={setShowAllExceptions}
+          runs={exceptionRuns}
+          showAll={showAllExceptions}
+        />
       ) : null}
 
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(360px,460px)_minmax(0,1fr)]">
@@ -291,6 +306,7 @@ export function ReconciliationDashboard() {
             form={form}
             generationDate={generationDate}
             generationDateBounds={generationDateBounds}
+            isDirty={serializeConfigForm(form) !== serializeConfigForm(getConfigForm(selectedConfig ?? undefined))}
             isLoading={isLoading}
             isSubmitting={isSubmitting}
             onFormChange={setForm}
@@ -308,6 +324,7 @@ export function ReconciliationDashboard() {
           isInternalAdmin={isInternalAdmin}
           isSubmitting={isSubmitting}
           onRetrySend={retrySftpSend}
+          config={selectedConfig ?? null}
           runs={selectedRuns}
         />
       </div>
@@ -352,6 +369,83 @@ function AdminClientSelector(props: {
   )
 }
 
+function ExceptionQueue(props: {
+  clients: ClientRecord[]
+  configs: ReconciliationConfigRecord[]
+  dismissedCount: number
+  isSubmitting: boolean
+  onDismiss: (runId: string) => void
+  onRetrySend: (run: ReconciliationRunRecord) => void
+  onShowAllChange: (showAll: boolean) => void
+  runs: ReconciliationRunRecord[]
+  showAll: boolean
+}) {
+  const visibleRuns = props.showAll ? props.runs : props.runs.slice(0, 5)
+  const hiddenCount = Math.max(0, props.runs.length - visibleRuns.length)
+
+  return (
+    <Card className="shadow-sm">
+      <CardHeader className="border-b bg-muted/20">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <CardTitle>Pendientes operativos</CardTitle>
+            <CardDescription>Archivos que requieren atención antes de cerrar el día.</CardDescription>
+          </div>
+          <Badge variant={props.runs.length > 0 ? "warning" : "secondary"}>{props.runs.length} pendiente{props.runs.length === 1 ? "" : "s"}</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 pt-5">
+        {props.runs.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Sin pendientes por atender{props.dismissedCount > 0 ? " en esta vista" : ""}.</p>
+        ) : (
+          <>
+            {visibleRuns.map((run) => {
+              const client = props.clients.find((item) => item.id === run.ownerClientId)
+              const config = props.configs.find((item) => item.ownerClientId === run.ownerClientId) ?? null
+              const sendRelated = run.status !== "generation_failed"
+
+              return (
+                <div key={run.id} className="rounded-lg border bg-background p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant={run.status === "generated" ? "warning" : "destructive"}>{getExceptionTitle(run)}</Badge>
+                        <span className="text-sm font-medium">{client?.displayName ?? run.ownerClientId}</span>
+                      </div>
+                      <p className="truncate text-sm text-muted-foreground">
+                        {run.reconciledDate} · {run.filename ?? "Sin archivo"}
+                      </p>
+                      {sendRelated ? (
+                        <p className="text-sm text-muted-foreground">{run.transactionCount} tx · {formatCurrency(run.totalAmount)}</p>
+                      ) : null}
+                      {getRunError(run) ? <p className="text-sm text-destructive">{getRunError(run)}</p> : null}
+                      {sendRelated ? <p className="text-xs text-muted-foreground">Destino: {getSftpPath(config, run)}</p> : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {run.filename && !run.fileDeletedAt ? <DownloadButton run={run} /> : null}
+                      {sendRelated ? (
+                        <Button size="sm" type="button" variant={run.status === "send_failed" ? "destructive" : "outline"} disabled={props.isSubmitting} onClick={() => props.onRetrySend(run)}>
+                          <RefreshCwIcon data-icon="inline-start" /> {run.status === "send_failed" ? "Reintentar" : "Enviar"}
+                        </Button>
+                      ) : null}
+                      <Button size="sm" type="button" variant="ghost" onClick={() => props.onDismiss(run.id)}>Ocultar</Button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+            {hiddenCount > 0 ? (
+              <Button type="button" variant="outline" onClick={() => props.onShowAllChange(true)}>Ver {hiddenCount} más</Button>
+            ) : props.showAll && props.runs.length > 5 ? (
+              <Button type="button" variant="outline" onClick={() => props.onShowAllChange(false)}>Ver menos</Button>
+            ) : null}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 function AdminConfigCard(props: {
   canGenerate: boolean
   client?: ClientRecord
@@ -359,6 +453,7 @@ function AdminConfigCard(props: {
   form: ConfigFormState
   generationDate: string
   generationDateBounds: { min: string; max: string }
+  isDirty: boolean
   isLoading: boolean
   isSubmitting: boolean
   onFormChange: (form: ConfigFormState) => void
@@ -368,28 +463,34 @@ function AdminConfigCard(props: {
   onTestSftp: () => void
 }) {
   const mode = props.config ? "edit" : "create"
+  const showSftpFields = props.form.sftpEnabled || hasAnySftpValue(props.form)
+  const disableSftpFields = !props.form.isEnabled || !props.form.sftpEnabled
 
   return (
     <Card className="shadow-sm">
       <CardHeader className="border-b bg-muted/20">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle>{mode === "edit" ? "Editar configuración" : "Crear configuración"}</CardTitle>
+            <CardTitle>{mode === "edit" ? "Configuración" : "Crear configuración"}</CardTitle>
             <CardDescription>
               {props.client ? `${props.client.displayName} · ${getClientKindLabel(props.client.clientKind)}` : "Selecciona un cliente para continuar."}
             </CardDescription>
           </div>
-          <Badge variant={props.form.isEnabled ? "secondary" : "outline"}>{props.form.isEnabled ? "Activa" : "Inactiva"}</Badge>
+          <Badge variant={props.form.isEnabled ? "secondary" : "outline"}>{props.form.isEnabled ? "Generación activa" : "Generación inactiva"}</Badge>
         </div>
       </CardHeader>
       <CardContent className="pt-5">
+        <details key={props.config?.id ?? "create"} open={mode === "create" ? true : undefined}>
+          <summary className="mb-4 cursor-pointer text-sm font-medium text-muted-foreground">
+            {mode === "edit" ? "Editar configuración" : "Completar configuración"}
+          </summary>
         <form onSubmit={props.onSubmit}>
           <FieldGroup>
             <Field>
-              <FieldLabel>Estado</FieldLabel>
-              <Select value={props.form.isEnabled ? "true" : "false"} onValueChange={(value) => props.onFormChange({ ...props.form, isEnabled: value === "true" })}>
+              <FieldLabel>Generar archivos diarios</FieldLabel>
+              <Select value={props.form.isEnabled ? "true" : "false"} onValueChange={(value) => props.onFormChange({ ...props.form, isEnabled: value === "true", sftpEnabled: value === "true" ? props.form.sftpEnabled : false })}>
                 <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="true">Activa</SelectItem><SelectItem value="false">Inactiva</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="true">Activo</SelectItem><SelectItem value="false">Inactivo</SelectItem></SelectContent>
               </Select>
             </Field>
             <Field>
@@ -413,43 +514,47 @@ function AdminConfigCard(props: {
             <div className="rounded-lg border bg-muted/20 p-3">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium">SFTP</p>
-                  <p className="text-xs text-muted-foreground">La contraseña real vive en Supabase Vault.</p>
+                  <p className="text-sm font-medium">Entrega automática SFTP</p>
+                  <p className="text-xs text-muted-foreground">Nombre del secreto existente en Supabase Vault; no pegues la contraseña aquí.</p>
                 </div>
-                <Select value={props.form.sftpEnabled ? "true" : "false"} onValueChange={(value) => props.onFormChange({ ...props.form, sftpEnabled: value === "true" })}>
+                <Select disabled={!props.form.isEnabled} value={props.form.sftpEnabled ? "true" : "false"} onValueChange={(value) => props.onFormChange({ ...props.form, sftpEnabled: value === "true" })}>
                   <SelectTrigger className="w-32 bg-background"><SelectValue /></SelectTrigger>
                   <SelectContent><SelectItem value="true">Activo</SelectItem><SelectItem value="false">Inactivo</SelectItem></SelectContent>
                 </Select>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field><FieldLabel>Host</FieldLabel><Input value={props.form.sftpHost} onChange={(event) => props.onFormChange({ ...props.form, sftpHost: event.target.value })} /></Field>
-                <Field><FieldLabel>Puerto</FieldLabel><Input inputMode="numeric" value={props.form.sftpPort} onChange={(event) => props.onFormChange({ ...props.form, sftpPort: event.target.value })} /></Field>
-                <Field><FieldLabel>Usuario</FieldLabel><Input value={props.form.sftpUsername} onChange={(event) => props.onFormChange({ ...props.form, sftpUsername: event.target.value })} /></Field>
-                <Field><FieldLabel>Ruta remota</FieldLabel><Input value={props.form.sftpRemotePath} onChange={(event) => props.onFormChange({ ...props.form, sftpRemotePath: event.target.value })} /></Field>
-                <Field><FieldLabel>Secreto Vault</FieldLabel><Input value={props.form.sftpPasswordSecretName} onChange={(event) => props.onFormChange({ ...props.form, sftpPasswordSecretName: event.target.value })} /></Field>
-              </div>
+              {showSftpFields ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field><FieldLabel>Host</FieldLabel><Input disabled={disableSftpFields} value={props.form.sftpHost} onChange={(event) => props.onFormChange({ ...props.form, sftpHost: event.target.value })} /></Field>
+                  <Field><FieldLabel>Puerto</FieldLabel><Input disabled={disableSftpFields} inputMode="numeric" value={props.form.sftpPort} onChange={(event) => props.onFormChange({ ...props.form, sftpPort: event.target.value })} /></Field>
+                  <Field><FieldLabel>Usuario</FieldLabel><Input disabled={disableSftpFields} value={props.form.sftpUsername} onChange={(event) => props.onFormChange({ ...props.form, sftpUsername: event.target.value })} /></Field>
+                  <Field><FieldLabel>Ruta remota</FieldLabel><Input disabled={disableSftpFields} value={props.form.sftpRemotePath} onChange={(event) => props.onFormChange({ ...props.form, sftpRemotePath: event.target.value })} /></Field>
+                  <Field><FieldLabel>Vault secret</FieldLabel><Input disabled={disableSftpFields} value={props.form.sftpPasswordSecretName} onChange={(event) => props.onFormChange({ ...props.form, sftpPasswordSecretName: event.target.value })} /></Field>
+                </div>
+              ) : null}
             </div>
             <div className="rounded-lg border bg-background p-3">
               <Field>
-                <FieldLabel>Generar archivo manual</FieldLabel>
+                <FieldLabel>Generar archivo para fecha</FieldLabel>
                 <Input type="date" max={props.generationDateBounds.max} min={props.generationDateBounds.min} value={props.generationDate} onChange={(event) => props.onGenerationDateChange(event.target.value)} />
-                <FieldDescription>Disponible para fechas ya cerradas dentro de los últimos 90 días.</FieldDescription>
+                <FieldDescription>Solo fechas cerradas. Si ya existe un archivo para esa fecha, se mostrará el existente.</FieldDescription>
               </Field>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button type="submit" disabled={props.isSubmitting || props.isLoading || !props.client}>
                 <SaveIcon data-icon="inline-start" /> {mode === "edit" ? "Guardar cambios" : "Crear configuración"}
               </Button>
-              <Button type="button" variant="outline" disabled={props.isSubmitting || !props.config} onClick={props.onTestSftp}>
+              <Button type="button" variant="outline" disabled={props.isSubmitting || !props.config || props.isDirty} onClick={props.onTestSftp}>
                 <ServerIcon data-icon="inline-start" /> Probar SFTP
               </Button>
               <Button type="button" variant="outline" disabled={props.isSubmitting || !props.canGenerate} onClick={props.onGenerate}>
-                <PlayIcon data-icon="inline-start" /> Generar fecha
+                <PlayIcon data-icon="inline-start" /> Generar archivo
               </Button>
             </div>
             {!props.canGenerate ? <p className="text-sm text-muted-foreground">Activa y guarda la configuración antes de generar archivos.</p> : null}
+            {props.isDirty && props.config ? <p className="text-sm text-muted-foreground">Guarda cambios antes de probar SFTP.</p> : null}
           </FieldGroup>
         </form>
+        </details>
       </CardContent>
     </Card>
   )
@@ -474,22 +579,12 @@ function ClientSummaryCard(props: {
           <Alert>
             <AlertCircleIcon />
             <AlertTitle>Sin configuración activa</AlertTitle>
-            <AlertDescription>Operaciones internas aún no ha configurado la conciliación para esta cuenta.</AlertDescription>
+            <AlertDescription>Tu archivo diario aparecerá aquí cuando esté disponible.</AlertDescription>
           </Alert>
         ) : (
           <>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant={props.config.isEnabled ? "secondary" : "outline"}>{props.config.isEnabled ? "Activa" : "Inactiva"}</Badge>
-              <Badge variant={props.config.sftpEnabled ? "secondary" : "outline"}>SFTP {props.config.sftpEnabled ? "configurado" : "inactivo"}</Badge>
-            </div>
-            <dl className="grid gap-3 text-sm sm:grid-cols-2">
-              <SummaryItem label="Usuario conciliación" value={props.config.reconciliationUsername} />
-              <SummaryItem label="Zona de corte" value={props.config.cutoffTimezone} />
-              <SummaryItem label="Diferencia en nombre" value={props.config.filenameTimeDifference} />
-              <SummaryItem label="Host SFTP" value={maskValue(props.config.sftpHost)} />
-              <SummaryItem label="Usuario SFTP" value={maskValue(props.config.sftpUsername)} />
-              <SummaryItem label="Ruta remota" value={props.config.sftpRemotePath ?? "No configurada"} />
-            </dl>
+            <Badge variant={props.config.isEnabled ? "secondary" : "outline"}>{props.config.isEnabled ? "Conciliación activa" : "Conciliación inactiva"}</Badge>
+            <p className="text-sm text-muted-foreground">Los archivos disponibles se muestran en el historial para descarga.</p>
           </>
         )}
       </CardContent>
@@ -499,6 +594,7 @@ function ClientSummaryCard(props: {
 
 function RunHistoryCard(props: {
   client?: ClientRecord
+  config: ReconciliationConfigRecord | null
   isInternalAdmin: boolean
   isSubmitting: boolean
   onRetrySend: (run: ReconciliationRunRecord) => void
@@ -515,18 +611,29 @@ function RunHistoryCard(props: {
       <CardContent className="p-0">
         {props.runs.length === 0 ? (
           <Empty className="m-4 border bg-muted/20">
-            <EmptyHeader><EmptyMedia variant="icon"><FileTextIcon /></EmptyMedia><EmptyTitle>Sin archivos generados</EmptyTitle><EmptyDescription>Cuando exista una ejecución, aparecerá aquí.</EmptyDescription></EmptyHeader>
+            <EmptyHeader><EmptyMedia variant="icon"><FileTextIcon /></EmptyMedia><EmptyTitle>{props.isInternalAdmin ? "Sin archivos generados" : "Aún no hay archivos de conciliación"}</EmptyTitle><EmptyDescription>{props.isInternalAdmin ? "Cuando exista una ejecución, aparecerá aquí." : "Cuando tu archivo diario esté disponible, aparecerá aquí para descarga."}</EmptyDescription></EmptyHeader>
           </Empty>
         ) : (
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Archivo</TableHead><TableHead>Estado</TableHead><TableHead>Tx</TableHead><TableHead>Monto</TableHead>{props.isInternalAdmin ? <TableHead>Diagnóstico</TableHead> : null}<TableHead>Acción</TableHead></TableRow></TableHeader>
+              {props.isInternalAdmin ? (
+                <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Nombre</TableHead><TableHead>Archivo</TableHead><TableHead>Entrega</TableHead><TableHead>Tx</TableHead><TableHead>Monto</TableHead><TableHead>Diagnóstico</TableHead><TableHead>Acción</TableHead></TableRow></TableHeader>
+              ) : (
+                <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Archivo</TableHead><TableHead>Estado</TableHead><TableHead>Tx</TableHead><TableHead>Monto</TableHead><TableHead>Acción</TableHead></TableRow></TableHeader>
+              )}
               <TableBody>
                 {props.runs.map((run) => (
                   <TableRow key={run.id}>
                     <TableCell>{run.reconciledDate}</TableCell>
                     <TableCell className="max-w-[260px] truncate">{run.filename ?? "No disponible"}</TableCell>
-                    <TableCell><StatusBadge status={run.status} /></TableCell>
+                    {props.isInternalAdmin ? (
+                      <>
+                        <TableCell><FileStatusBadge run={run} /></TableCell>
+                        <TableCell><DeliveryStatusBadge config={props.config} run={run} /></TableCell>
+                      </>
+                    ) : (
+                      <TableCell><ClientStatusBadge config={props.config} run={run} /></TableCell>
+                    )}
                     <TableCell>{run.transactionCount}</TableCell>
                     <TableCell>{formatCurrency(run.totalAmount)}</TableCell>
                     {props.isInternalAdmin ? (
@@ -538,7 +645,7 @@ function RunHistoryCard(props: {
                             variant="ghost"
                             onClick={() => setSelectedErrorRun(run)}
                           >
-                            <AlertCircleIcon data-icon="inline-start" /> Ver error
+                            <AlertCircleIcon data-icon="inline-start" /> Ver diagnóstico
                           </Button>
                         ) : (
                           <span className="text-xs text-muted-foreground">-</span>
@@ -547,9 +654,9 @@ function RunHistoryCard(props: {
                     ) : null}
                     <TableCell>
                       <div className="flex flex-wrap gap-2">
-                        {run.filename && !run.fileDeletedAt ? <Button size="sm" variant="outline" render={<a href={`/api/reconciliations/runs/${run.id}/download`}><DownloadIcon data-icon="inline-start" /> Descargar</a>} /> : <span className="text-xs text-muted-foreground">No disponible</span>}
+                        {run.filename && !run.fileDeletedAt ? <DownloadButton run={run} /> : <span className="text-xs text-muted-foreground">No disponible</span>}
                         {props.isInternalAdmin && run.filename && !run.fileDeletedAt && (run.status === "generated" || run.status === "sent" || run.status === "send_failed") ? (
-                          <Button size="sm" type="button" variant="outline" disabled={props.isSubmitting} onClick={() => props.onRetrySend(run)}>
+                          <Button size="sm" type="button" variant={run.status === "send_failed" ? "destructive" : "outline"} disabled={props.isSubmitting} onClick={() => props.onRetrySend(run)}>
                             <RefreshCwIcon data-icon="inline-start" /> {getSftpActionLabel(run.status)}
                           </Button>
                         ) : null}
@@ -565,7 +672,7 @@ function RunHistoryCard(props: {
       <Sheet open={Boolean(selectedErrorRun)} onOpenChange={(open) => !open && setSelectedErrorRun(null)}>
         <SheetContent className="sm:max-w-xl">
           <SheetHeader>
-            <SheetTitle>Error interno</SheetTitle>
+            <SheetTitle>Detalle de conciliación</SheetTitle>
             <SheetDescription>
               {selectedErrorRun
                 ? `Conciliación ${selectedErrorRun.reconciledDate}`
@@ -575,12 +682,18 @@ function RunHistoryCard(props: {
           {selectedErrorRun ? (
             <div className="space-y-4 px-4 pb-4">
               <div className="grid gap-2 rounded-lg border bg-muted/20 p-3 text-sm">
-                <SummaryItem label="Estado" value={getStatusLabel(selectedErrorRun.status)} />
-                <SummaryItem label="Archivo" value={selectedErrorRun.filename ?? "No disponible"} />
+                <SummaryItem label="Archivo" value={getFileStatusLabel(selectedErrorRun)} />
+                <SummaryItem label="Entrega" value={getDeliveryStatusLabel(props.config, selectedErrorRun)} />
+                <SummaryItem label="Nombre" value={selectedErrorRun.filename ?? "No disponible"} />
+                <SummaryItem label="Ruta SFTP" value={getSftpPath(props.config, selectedErrorRun)} />
+                <SummaryItem label="Tx" value={String(selectedErrorRun.transactionCount)} />
+                <SummaryItem label="Monto" value={formatCurrency(selectedErrorRun.totalAmount)} />
               </div>
-              <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-lg border bg-background p-3 text-xs leading-relaxed text-foreground">
-                {getRunError(selectedErrorRun)}
-              </pre>
+              {getRunError(selectedErrorRun) ? (
+                <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-lg border bg-background p-3 text-xs leading-relaxed text-foreground">
+                  {getRunError(selectedErrorRun)}
+                </pre>
+              ) : null}
             </div>
           ) : null}
         </SheetContent>
@@ -593,12 +706,51 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
   return <div><dt className="text-muted-foreground">{label}</dt><dd className="font-medium">{value}</dd></div>
 }
 
-function StatusBadge({ status }: { status: ReconciliationRunRecord["status"] }) {
-  if (status === "generated" || status === "sent") {
-    return <Badge variant="secondary"><CheckCircle2Icon data-icon="inline-start" />{getStatusLabel(status)}</Badge>
+function DownloadButton({ run }: { run: ReconciliationRunRecord }) {
+  return (
+    <Button size="sm" variant="outline" render={<a href={`/api/reconciliations/runs/${run.id}/download`} />}>
+      <DownloadIcon data-icon="inline-start" /> Descargar
+    </Button>
+  )
+}
+
+function FileStatusBadge({ run }: { run: ReconciliationRunRecord }) {
+  if (run.fileDeletedAt) {
+    return <Badge variant="outline">Expirado</Badge>
   }
 
-  return <Badge variant="destructive"><AlertCircleIcon data-icon="inline-start" />{getStatusLabel(status)}</Badge>
+  if (run.status === "generation_failed") {
+    return <Badge variant="destructive"><AlertCircleIcon data-icon="inline-start" />No generado</Badge>
+  }
+
+  return <Badge variant="secondary"><CheckCircle2Icon data-icon="inline-start" />Generado</Badge>
+}
+
+function DeliveryStatusBadge(props: { config: ReconciliationConfigRecord | null; run: ReconciliationRunRecord }) {
+  const label = getDeliveryStatusLabel(props.config, props.run)
+
+  if (label === "Enviado") {
+    return <Badge variant="secondary"><CheckCircle2Icon data-icon="inline-start" />{label}</Badge>
+  }
+  if (label === "Falló") {
+    return <Badge variant="destructive"><AlertCircleIcon data-icon="inline-start" />{label}</Badge>
+  }
+  if (label === "Pendiente") {
+    return <Badge variant="warning">{label}</Badge>
+  }
+  return <Badge variant="outline">{label}</Badge>
+}
+
+function ClientStatusBadge(props: { config: ReconciliationConfigRecord | null; run: ReconciliationRunRecord }) {
+  const label = getClientStatusLabel(props.config, props.run)
+
+  if (label === "Entregado" || label === "Disponible") {
+    return <Badge variant="secondary"><CheckCircle2Icon data-icon="inline-start" />{label}</Badge>
+  }
+  if (label === "Entrega pendiente") {
+    return <Badge variant="warning">{label}</Badge>
+  }
+  return <Badge variant="outline">{label}</Badge>
 }
 
 type ConfigFormState = ReturnType<typeof getConfigForm>
@@ -613,30 +765,99 @@ const getClientKindLabel = (clientKind: ClientRecord["clientKind"]) => {
   return "Asociado"
 }
 
-const getStatusLabel = (status: ReconciliationRunRecord["status"]) => {
-  if (status === "generated") {
-    return "Generado"
+const getFileStatusLabel = (run: ReconciliationRunRecord) => {
+  if (run.fileDeletedAt) {
+    return "Expirado"
   }
-  if (status === "sent") {
+  return run.status === "generation_failed" ? "No generado" : "Generado"
+}
+
+const getDeliveryStatusLabel = (config: ReconciliationConfigRecord | null, run: ReconciliationRunRecord) => {
+  if (run.status === "generation_failed") {
+    return "No aplica"
+  }
+  if (run.status === "send_failed") {
+    return "Falló"
+  }
+  if (run.status === "sent") {
     return "Enviado"
   }
-  if (status === "send_failed") {
-    return "Falló envío"
+  if (!config?.sftpEnabled) {
+    return "No aplica"
   }
-  return "Falló generación"
+  return "Pendiente"
+}
+
+const getClientStatusLabel = (config: ReconciliationConfigRecord | null, run: ReconciliationRunRecord) => {
+  if (run.fileDeletedAt) {
+    return "Expirado"
+  }
+  if (run.status === "generation_failed") {
+    return "No disponible"
+  }
+  if (run.status === "sent") {
+    return "Entregado"
+  }
+  if (config?.sftpEnabled || run.status === "send_failed") {
+    return "Entrega pendiente"
+  }
+  return "Disponible"
 }
 
 const getSftpActionLabel = (status: ReconciliationRunRecord["status"]) => {
   if (status === "generated") {
-    return "Enviar a SFTP"
+    return "Enviar"
   }
   if (status === "sent") {
-    return "Reenviar a SFTP"
+    return "Reenviar"
   }
-  return "Reintentar SFTP"
+  return "Reintentar"
 }
 
 const getRunError = (run: ReconciliationRunRecord) => run.internalError || run.lastSendError || null
+
+const getExceptionTitle = (run: ReconciliationRunRecord) => {
+  if (run.status === "generation_failed") {
+    return "No se pudo generar archivo"
+  }
+  if (run.status === "send_failed") {
+    return "Falló entrega"
+  }
+  return "Archivo pendiente de envío"
+}
+
+const getExceptionRuns = (runs: ReconciliationRunRecord[], configs: ReconciliationConfigRecord[]) => {
+  const configByOwner = new Map(configs.map((config) => [config.ownerClientId, config]))
+  return runs
+    .filter((run) => {
+      if (run.fileDeletedAt) {
+        return false
+      }
+      if (run.status === "generation_failed" || run.status === "send_failed") {
+        return true
+      }
+      return run.status === "generated" && configByOwner.get(run.ownerClientId)?.sftpEnabled
+    })
+    .sort((left, right) => getExceptionRank(left) - getExceptionRank(right) || left.reconciledDate.localeCompare(right.reconciledDate))
+}
+
+const getExceptionRank = (run: ReconciliationRunRecord) => {
+  if (run.status === "generation_failed") {
+    return 0
+  }
+  if (run.status === "send_failed") {
+    return 1
+  }
+  return 2
+}
+
+const getSftpPath = (config: ReconciliationConfigRecord | null, run: ReconciliationRunRecord) => {
+  if (!config?.sftpRemotePath || !run.filename) {
+    return "No aplica"
+  }
+
+  return `${config.sftpRemotePath.replace(/\/+$/, "")}/${run.filename}`
+}
 
 const showRunResultToast = (run: ReconciliationRunRecord, toastId: string | number, fallback: string) => {
   if (run.status === "sent") {
@@ -657,18 +878,13 @@ const showRunResultToast = (run: ReconciliationRunRecord, toastId: string | numb
   toast.success(fallback, { id: toastId })
 }
 
-const maskValue = (value: string | null) => {
-  if (!value) {
-    return "No configurado"
-  }
-  if (value.length <= 4) {
-    return "****"
-  }
-  return `${value.slice(0, 2)}${"*".repeat(Math.min(value.length - 4, 8))}${value.slice(-2)}`
-}
-
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("es-MX", { currency: "MXN", style: "currency" }).format(value)
+
+const serializeConfigForm = (form: ConfigFormState) => JSON.stringify(form)
+
+const hasAnySftpValue = (form: ConfigFormState) =>
+  Boolean(form.sftpHost || form.sftpUsername || form.sftpRemotePath || form.sftpPasswordSecretName)
 
 const getConfigForm = (config?: ReconciliationConfigRecord) => ({
   isEnabled: config?.isEnabled ?? false,

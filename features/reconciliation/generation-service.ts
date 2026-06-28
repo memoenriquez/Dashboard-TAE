@@ -21,13 +21,24 @@ export const generateReconciliationRun = async (input: {
   reconciliationRepository: ReconciliationRepository
   supabase: SupabaseClient
 }): Promise<ReconciliationRun> => {
+  const result = await generateReconciliationRunResult(input)
+  return result.run
+}
+
+export const generateReconciliationRunResult = async (input: {
+  ownerClient: Client
+  reconciledDate: string
+  metadataRepository: ScopeRepository
+  reconciliationRepository: ReconciliationRepository
+  supabase: SupabaseClient
+}): Promise<{ run: ReconciliationRun; reused: boolean; sftpAttempted: boolean }> => {
   const existingRun = await input.reconciliationRepository.getRunByOwnerAndDate({
     ownerClientId: input.ownerClient.id,
     reconciledDate: input.reconciledDate,
   })
 
   if (existingRun) {
-    return existingRun
+    return { run: existingRun, reused: true, sftpAttempted: false }
   }
 
   const config = await input.reconciliationRepository.getConfigByOwnerClientId(
@@ -121,7 +132,7 @@ export const generateReconciliationRun = async (input: {
   })
 
   if (!config.sftpEnabled) {
-    return run
+    return { run, reused: false, sftpAttempted: false }
   }
 
   try {
@@ -131,17 +142,25 @@ export const generateReconciliationRun = async (input: {
       filename: file.filename,
     })
 
-    return input.reconciliationRepository.updateSendResult({
-      id: run.id,
-      sentAt: new Date().toISOString(),
-      status: "sent",
-    })
+    return {
+      run: await input.reconciliationRepository.updateSendResult({
+        id: run.id,
+        sentAt: new Date().toISOString(),
+        status: "sent",
+      }),
+      reused: false,
+      sftpAttempted: true,
+    }
   } catch (error) {
-    return input.reconciliationRepository.updateSendResult({
-      id: run.id,
-      lastSendError: error instanceof Error ? error.message : "SFTP upload failed",
-      status: "send_failed",
-    })
+    return {
+      run: await input.reconciliationRepository.updateSendResult({
+        id: run.id,
+        lastSendError: error instanceof Error ? error.message : "SFTP upload failed",
+        status: "send_failed",
+      }),
+      reused: false,
+      sftpAttempted: true,
+    }
   }
 }
 
