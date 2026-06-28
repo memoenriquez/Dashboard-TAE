@@ -19,6 +19,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { readApiErrorMessage } from "@/lib/api/client-error"
 
@@ -441,6 +442,8 @@ function RunHistoryCard(props: {
   isInternalAdmin: boolean
   runs: ReconciliationRunRecord[]
 }) {
+  const [selectedErrorRun, setSelectedErrorRun] = useState<ReconciliationRunRecord | null>(null)
+
   return (
     <Card className="min-w-0 shadow-sm">
       <CardHeader className="border-b bg-muted/20">
@@ -455,7 +458,7 @@ function RunHistoryCard(props: {
         ) : (
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Archivo</TableHead><TableHead>Estado</TableHead><TableHead>Tx</TableHead><TableHead>Monto</TableHead>{props.isInternalAdmin ? <TableHead>Error interno</TableHead> : null}<TableHead>Acción</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Archivo</TableHead><TableHead>Estado</TableHead><TableHead>Tx</TableHead><TableHead>Monto</TableHead>{props.isInternalAdmin ? <TableHead>Diagnóstico</TableHead> : null}<TableHead>Acción</TableHead></TableRow></TableHeader>
               <TableBody>
                 {props.runs.map((run) => (
                   <TableRow key={run.id}>
@@ -464,7 +467,22 @@ function RunHistoryCard(props: {
                     <TableCell><StatusBadge status={run.status} /></TableCell>
                     <TableCell>{run.transactionCount}</TableCell>
                     <TableCell>{formatCurrency(run.totalAmount)}</TableCell>
-                    {props.isInternalAdmin ? <TableCell className="max-w-[320px] truncate text-xs text-muted-foreground">{run.internalError ?? "-"}</TableCell> : null}
+                    {props.isInternalAdmin ? (
+                      <TableCell>
+                        {run.internalError ? (
+                          <Button
+                            size="sm"
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setSelectedErrorRun(run)}
+                          >
+                            <AlertCircleIcon data-icon="inline-start" /> Ver error
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                    ) : null}
                     <TableCell>{run.filename && !run.fileDeletedAt ? <Button size="sm" variant="outline" render={<a href={`/api/reconciliations/runs/${run.id}/download`}><DownloadIcon data-icon="inline-start" /> Descargar</a>} /> : <span className="text-xs text-muted-foreground">No disponible</span>}</TableCell>
                   </TableRow>
                 ))}
@@ -473,6 +491,29 @@ function RunHistoryCard(props: {
           </div>
         )}
       </CardContent>
+      <Sheet open={Boolean(selectedErrorRun)} onOpenChange={(open) => !open && setSelectedErrorRun(null)}>
+        <SheetContent className="sm:max-w-xl">
+          <SheetHeader>
+            <SheetTitle>Error interno</SheetTitle>
+            <SheetDescription>
+              {selectedErrorRun
+                ? `Conciliación ${selectedErrorRun.reconciledDate}`
+                : "Detalle de conciliación"}
+            </SheetDescription>
+          </SheetHeader>
+          {selectedErrorRun ? (
+            <div className="space-y-4 px-4 pb-4">
+              <div className="grid gap-2 rounded-lg border bg-muted/20 p-3 text-sm">
+                <SummaryItem label="Estado" value={getStatusLabel(selectedErrorRun.status)} />
+                <SummaryItem label="Archivo" value={selectedErrorRun.filename ?? "No disponible"} />
+              </div>
+              <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-lg border bg-background p-3 text-xs leading-relaxed text-foreground">
+                {selectedErrorRun.internalError}
+              </pre>
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
     </Card>
   )
 }
