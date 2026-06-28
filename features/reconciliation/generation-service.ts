@@ -33,7 +33,9 @@ export const generateReconciliationRun = async (input: {
     input.ownerClient.id
   )
   if (!config || !config.isEnabled) {
-    throw new ReconciliationGenerationError("Reconciliation config is not enabled")
+    throw new ReconciliationGenerationError(
+      "Activa y guarda la configuración de conciliación antes de generar archivos."
+    )
   }
 
   const externalClientIds = await listIncludedExternalClientIds({

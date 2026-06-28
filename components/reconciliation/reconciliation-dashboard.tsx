@@ -86,6 +86,7 @@ export function ReconciliationDashboard() {
   const selectedRuns = selectedClient
     ? runs.filter((run) => run.ownerClientId === selectedClient.id)
     : []
+  const canGenerate = Boolean(selectedConfig?.isEnabled)
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
@@ -275,9 +276,14 @@ export function ReconciliationDashboard() {
                   <Button type="submit" disabled={isSubmitting || isLoading || !selectedClient}>
                     <SaveIcon data-icon="inline-start" /> Guardar
                   </Button>
-                  <Button type="button" variant="outline" disabled={isSubmitting || !selectedConfig} onClick={generateSelectedDate}>
+                  <Button type="button" variant="outline" disabled={isSubmitting || !canGenerate} onClick={generateSelectedDate}>
                     <PlayIcon data-icon="inline-start" /> Generar fecha
                   </Button>
+                  {!canGenerate ? (
+                    <p className="text-sm text-muted-foreground">
+                      Activa y guarda la configuración antes de generar archivos.
+                    </p>
+                  ) : null}
                 </>
               ) : null}
             </FieldGroup>
