@@ -15,17 +15,14 @@ export const parseReconciliationConfigInput = (
   body: Record<string, unknown>
 ): ReconciliationConfigInput => {
   const ownerClientId = parseRequiredString(body.ownerClientId, "Missing owner client")
-  const reconciliationUsername = parseRequiredString(
-    body.reconciliationUsername,
-    "Missing reconciliation username"
-  )
+  const reconciliationUsername = parseOptionalString(body.reconciliationUsername)
   const cutoffTimezone = parseMexicanTimezone(body.cutoffTimezone)
   const filenameTimeDifference = parseRequiredString(
     body.filenameTimeDifference,
     "Missing filename time difference"
   )
 
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(reconciliationUsername)) {
+  if (reconciliationUsername && !isValidReconciliationUsername(reconciliationUsername)) {
     throw new ReconciliationValidationError("Invalid reconciliation username")
   }
 
@@ -68,8 +65,33 @@ export const parseReconciliationConfigInput = (
     sftpUsername,
     sftpRemotePath,
     sftpPasswordSecretName,
+    childConfigs: parseChildConfigs(body.childConfigs),
   }
 }
+
+const parseChildConfigs = (value: unknown) => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.map((item) => {
+    const record = item && typeof item === "object" ? item as Record<string, unknown> : {}
+    const childClientId = parseRequiredString(record.childClientId, "Missing child client")
+    const reconciliationUsername = parseRequiredString(
+      record.reconciliationUsername,
+      "Missing child reconciliation username"
+    )
+
+    if (!isValidReconciliationUsername(reconciliationUsername)) {
+      throw new ReconciliationValidationError("Invalid child reconciliation username")
+    }
+
+    return { childClientId, reconciliationUsername }
+  })
+}
+
+export const isValidReconciliationUsername = (value: string) =>
+  /^[A-Za-z0-9_-]{1,40}$/.test(value)
 
 const parseRequiredString = (value: unknown, message: string) => {
   const parsed = typeof value === "string" ? value.trim() : ""

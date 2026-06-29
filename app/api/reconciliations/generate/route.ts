@@ -35,25 +35,34 @@ export const POST = withApiErrorHandling(async (request: Request) => {
       reconciliationRepository: createReconciliationRepository(adminClient),
       supabase: adminClient,
     })
-    const { run } = result
+    const run = result.runs[0]?.run
 
-    await recordAuditEvent({
-      repository: context.metadataRepository,
-      event: {
-        actorUserId: context.user.id,
-        actorClientId: context.resolvedProfile.profile.clientId,
-        eventType: "reconciliation_file_generated",
-        targetType: "reconciliation_run",
-        targetId: run.id,
-        metadata: {
-          ownerClientId: run.ownerClientId,
-          reconciledDate: run.reconciledDate,
-          status: run.status,
+    if (run) {
+      await recordAuditEvent({
+        repository: context.metadataRepository,
+        event: {
+          actorUserId: context.user.id,
+          actorClientId: context.resolvedProfile.profile.clientId,
+          eventType: "reconciliation_file_generated",
+          targetType: "reconciliation_run",
+          targetId: run.id,
+          metadata: {
+            ownerClientId: run.ownerClientId,
+            reconciledDate: run.reconciledDate,
+            status: run.status,
+            runCount: result.runs.length,
+          },
         },
-      },
-    })
+      })
+    }
 
-    return Response.json({ run, reused: result.reused, created: !result.reused, sftpAttempted: result.sftpAttempted })
+    return Response.json({
+      runs: result.runs,
+      run,
+      reused: result.runs.every((item) => item.reused),
+      created: result.runs.some((item) => !item.reused),
+      sftpAttempted: result.runs.some((item) => item.sftpAttempted),
+    })
 })
 
 const assertAllowedReconciledDate = (value: string) => {

@@ -26,7 +26,17 @@ export const GET = withApiErrorHandling(
 
     if (!dashboardContext.resolvedProfile.profile.isInternalAdmin) {
       const client = dashboardContext.resolvedProfile.client
-      if (!client || client.id !== run.ownerClientId || client.clientKind === "child") {
+      if (!client || client.clientKind === "child") {
+        throw new DashboardAccessDeniedError()
+      }
+
+      const ownsRun = client.id === run.ownerClientId
+      const childClients = client.clientKind === "parent"
+        ? await dashboardContext.metadataRepository.listChildClientsForParent(client.id)
+        : []
+      const ownsSubject = childClients.some((child) => child.id === run.subjectClientId)
+
+      if (!ownsRun && !ownsSubject) {
         throw new DashboardAccessDeniedError()
       }
     }

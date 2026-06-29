@@ -20,6 +20,29 @@ export const PATCH = withApiErrorHandling(async (request: Request) => {
       throw new DashboardValidationError("Reconciliation owner must be parent or standalone")
     }
 
+    if (ownerClient.clientKind === "standalone" && !input.reconciliationUsername) {
+      throw new DashboardValidationError("Missing reconciliation username")
+    }
+
+    if (ownerClient.clientKind === "parent") {
+      const childClients = await context.metadataRepository.listChildClientsForParent(ownerClient.id)
+      const childIds = new Set(childClients.map((child) => child.id))
+      const invalidChild = input.childConfigs.find((childConfig) => !childIds.has(childConfig.childClientId))
+
+      if (invalidChild) {
+        throw new DashboardValidationError("Child reconciliation config does not belong to this parent")
+      }
+
+      const activeChildren = childClients
+        .filter((client) => client.isActive && client.externalClientId !== null)
+      const configuredChildIds = new Set(input.childConfigs.map((childConfig) => childConfig.childClientId))
+      const missingChild = activeChildren.find((child) => !configuredChildIds.has(child.id))
+
+      if (input.isEnabled && missingChild) {
+        throw new DashboardValidationError(`Missing reconciliation username for ${missingChild.displayName}`)
+      }
+    }
+
     const repository = createReconciliationRepository(createAdminClient())
     const config = await repository.upsertConfig(input)
 

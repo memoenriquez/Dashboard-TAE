@@ -42,7 +42,7 @@ export interface ReconciliationConfig {
   id: string
   ownerClientId: string
   isEnabled: boolean
-  reconciliationUsername: string
+  reconciliationUsername: string | null
   cutoffTimezone: MexicanTimezone
   filenameTimeDifference: string
   sftpEnabled: boolean
@@ -55,10 +55,20 @@ export interface ReconciliationConfig {
   updatedAt: string
 }
 
+export interface ReconciliationChildConfig {
+  id: string
+  configId: string
+  childClientId: string
+  reconciliationUsername: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface ReconciliationRun {
   id: string
   configId: string
   ownerClientId: string
+  subjectClientId: string
   reconciledDate: string
   filename: string | null
   storagePath: string | null
@@ -85,6 +95,7 @@ export interface UpdateReconciliationSendResultInput {
 export interface CreateReconciliationRunInput {
   configId: string
   ownerClientId: string
+  subjectClientId: string
   reconciledDate: string
   filename: string | null
   storagePath: string | null
@@ -99,7 +110,7 @@ export interface CreateReconciliationRunInput {
 export interface ReconciliationConfigInput {
   ownerClientId: string
   isEnabled: boolean
-  reconciliationUsername: string
+  reconciliationUsername: string | null
   cutoffTimezone: MexicanTimezone
   filenameTimeDifference: string
   sftpEnabled: boolean
@@ -108,4 +119,10 @@ export interface ReconciliationConfigInput {
   sftpUsername: string | null
   sftpRemotePath: string | null
   sftpPasswordSecretName: string | null
+  childConfigs: ReconciliationChildConfigInput[]
+}
+
+export interface ReconciliationChildConfigInput {
+  childClientId: string
+  reconciliationUsername: string
 }

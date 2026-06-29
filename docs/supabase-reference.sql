@@ -56,7 +56,7 @@ create table if not exists public.reconciliation_configs (
   id uuid primary key default gen_random_uuid(),
   owner_client_id uuid not null references public.clients(id) on delete cascade,
   is_enabled boolean not null default false,
-  reconciliation_username text not null,
+  reconciliation_username text,
   cutoff_timezone text not null,
   filename_time_difference text not null,
   sftp_enabled boolean not null default false,
@@ -71,10 +71,24 @@ create table if not exists public.reconciliation_configs (
   constraint reconciliation_sftp_port check (sftp_port between 1 and 65535)
 );
 
+create table if not exists public.reconciliation_child_configs (
+  id uuid primary key default gen_random_uuid(),
+  config_id uuid not null references public.reconciliation_configs(id) on delete cascade,
+  child_client_id uuid not null references public.clients(id) on delete cascade,
+  reconciliation_username text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (config_id, child_client_id),
+  unique (config_id, reconciliation_username),
+  constraint reconciliation_child_username_format
+    check (reconciliation_username ~ '^[A-Za-z0-9_-]{1,40}$')
+);
+
 create table if not exists public.reconciliation_runs (
   id uuid primary key default gen_random_uuid(),
   config_id uuid not null references public.reconciliation_configs(id),
   owner_client_id uuid not null references public.clients(id),
+  subject_client_id uuid not null references public.clients(id),
   reconciled_date date not null,
   filename text,
   storage_path text,
@@ -94,7 +108,7 @@ create table if not exists public.reconciliation_runs (
   generated_at timestamptz,
   sent_at timestamptz,
   created_at timestamptz not null default now(),
-  unique (owner_client_id, reconciled_date)
+  unique (owner_client_id, subject_client_id, reconciled_date)
 );
 
 create index if not exists profiles_client_id_idx on public.profiles (client_id);
@@ -115,10 +129,16 @@ create index if not exists audit_events_created_at_idx
   on public.audit_events (created_at desc);
 create index if not exists reconciliation_configs_owner_client_id_idx
   on public.reconciliation_configs (owner_client_id);
+create index if not exists reconciliation_child_configs_config_id_idx
+  on public.reconciliation_child_configs (config_id);
+create index if not exists reconciliation_child_configs_child_client_id_idx
+  on public.reconciliation_child_configs (child_client_id);
 create index if not exists reconciliation_runs_config_id_idx
   on public.reconciliation_runs (config_id);
 create index if not exists reconciliation_runs_owner_date_idx
   on public.reconciliation_runs (owner_client_id, reconciled_date desc);
+create index if not exists reconciliation_runs_subject_date_idx
+  on public.reconciliation_runs (subject_client_id, reconciled_date desc);
 create index if not exists reconciliation_runs_status_idx
   on public.reconciliation_runs (status);
 create index if not exists reconciliation_runs_file_cleanup_idx
@@ -134,6 +154,7 @@ alter table public.client_groups enable row level security;
 alter table public.client_group_members enable row level security;
 alter table public.audit_events enable row level security;
 alter table public.reconciliation_configs enable row level security;
+alter table public.reconciliation_child_configs enable row level security;
 alter table public.reconciliation_runs enable row level security;
 
 create schema if not exists private;
@@ -326,6 +347,31 @@ with check ((select private.is_internal_admin()));
 
 create policy "Reconciliation configs are deletable by internal admins"
 on public.reconciliation_configs
+for delete
+to authenticated
+using ((select private.is_internal_admin()));
+
+create policy "Reconciliation child configs are readable by internal admins"
+on public.reconciliation_child_configs
+for select
+to authenticated
+using ((select private.is_internal_admin()));
+
+create policy "Reconciliation child configs are insertable by internal admins"
+on public.reconciliation_child_configs
+for insert
+to authenticated
+with check ((select private.is_internal_admin()));
+
+create policy "Reconciliation child configs are updatable by internal admins"
+on public.reconciliation_child_configs
+for update
+to authenticated
+using ((select private.is_internal_admin()))
+with check ((select private.is_internal_admin()));
+
+create policy "Reconciliation child configs are deletable by internal admins"
+on public.reconciliation_child_configs
 for delete
 to authenticated
 using ((select private.is_internal_admin()));

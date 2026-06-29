@@ -11,6 +11,7 @@ import { ReconciliationGenerationError } from "./errors"
 import { createReconciliationFile } from "./file-builder"
 import { uploadReconciliationFileToSftp } from "./sftp-service"
 import type { ReconciliationRun } from "./types"
+import { isValidReconciliationUsername } from "./validation"
 
 const BUCKET = "reconciliation-files"
 
@@ -22,7 +23,17 @@ export const generateReconciliationRun = async (input: {
   supabase: SupabaseClient
 }): Promise<ReconciliationRun> => {
   const result = await generateReconciliationRunResult(input)
-  return result.run
+  const firstRun = result.runs[0]?.run
+  if (!firstRun) {
+    throw new ReconciliationGenerationError("No reconciliation files were generated")
+  }
+  return firstRun
+}
+
+export interface ReconciliationRunGenerationResult {
+  run: ReconciliationRun
+  reused: boolean
+  sftpAttempted: boolean
 }
 
 export const generateReconciliationRunResult = async (input: {
@@ -31,16 +42,7 @@ export const generateReconciliationRunResult = async (input: {
   metadataRepository: ScopeRepository
   reconciliationRepository: ReconciliationRepository
   supabase: SupabaseClient
-}): Promise<{ run: ReconciliationRun; reused: boolean; sftpAttempted: boolean }> => {
-  const existingRun = await input.reconciliationRepository.getRunByOwnerAndDate({
-    ownerClientId: input.ownerClient.id,
-    reconciledDate: input.reconciledDate,
-  })
-
-  if (existingRun) {
-    return { run: existingRun, reused: true, sftpAttempted: false }
-  }
-
+}): Promise<{ runs: ReconciliationRunGenerationResult[] }> => {
   const config = await input.reconciliationRepository.getConfigByOwnerClientId(
     input.ownerClient.id
   )
@@ -50,10 +52,62 @@ export const generateReconciliationRunResult = async (input: {
     )
   }
 
-  const externalClientIds = await listIncludedExternalClientIds({
+  const subjects = await listGenerationSubjects({
+    configId: config.id,
     ownerClient: input.ownerClient,
     repository: input.metadataRepository,
+    reconciliationRepository: input.reconciliationRepository,
   })
+
+  const runs = []
+  for (const subject of subjects) {
+    try {
+      runs.push(await generateSubjectRun({ ...input, config, subject }))
+    } catch (error) {
+      const failedRun = await createFailedRun({
+        configId: config.id,
+        ownerClientId: input.ownerClient.id,
+        subjectClientId: subject.client.id,
+        reconciledDate: input.reconciledDate,
+        externalClientIds: subject.externalClientIds,
+        error: toGenerationError(error),
+        repository: input.reconciliationRepository,
+      })
+      if (failedRun) {
+        runs.push({ run: failedRun, reused: false, sftpAttempted: false })
+      }
+    }
+  }
+
+  return { runs }
+}
+
+const generateSubjectRun = async (input: {
+  ownerClient: Client
+  reconciledDate: string
+  metadataRepository: ScopeRepository
+  reconciliationRepository: ReconciliationRepository
+  supabase: SupabaseClient
+  config: NonNullable<Awaited<ReturnType<ReconciliationRepository["getConfigByOwnerClientId"]>>>
+  subject: GenerationSubject
+}): Promise<ReconciliationRunGenerationResult> => {
+  const existingRun = await input.reconciliationRepository.getRunByOwnerAndDate({
+    ownerClientId: input.ownerClient.id,
+    subjectClientId: input.subject.client.id,
+    reconciledDate: input.reconciledDate,
+  })
+
+  if (existingRun && existingRun.status !== "generation_failed") {
+    return { run: existingRun, reused: true, sftpAttempted: false }
+  }
+
+  if (!input.subject.reconciliationUsername) {
+    throw new ReconciliationGenerationError(
+      `Missing reconciliation username for ${input.subject.client.displayName}`
+    )
+  }
+
+  const externalClientIds = input.subject.externalClientIds
   let file
 
   try {
@@ -76,26 +130,17 @@ export const generateReconciliationRunResult = async (input: {
       pageSize: Number.MAX_SAFE_INTEGER,
     })
     file = createReconciliationFile({
-      reconciliationUsername: config.reconciliationUsername,
-      filenameTimeDifference: config.filenameTimeDifference,
+      reconciliationUsername: input.subject.reconciliationUsername,
+      filenameTimeDifference: input.config.filenameTimeDifference,
       reconciledDate: new Date(`${input.reconciledDate}T12:00:00.000Z`),
-      cutoffTimezone: config.cutoffTimezone,
+      cutoffTimezone: input.config.cutoffTimezone,
       transactions,
     })
   } catch (error) {
-    const generationError = toGenerationError(error)
-    await createFailedRun({
-      configId: config.id,
-      ownerClientId: input.ownerClient.id,
-      reconciledDate: input.reconciledDate,
-      externalClientIds,
-      error: generationError,
-      repository: input.reconciliationRepository,
-    })
-    throw generationError
+    throw toGenerationError(error)
   }
   const [year, month] = input.reconciledDate.split("-")
-  const storagePath = `${input.ownerClient.id}/${year}/${month}/${file.filename}`
+  const storagePath = `${input.ownerClient.id}/${input.subject.client.id}/${year}/${month}/${file.filename}`
   const { error: uploadError } = await input.supabase.storage
     .from(BUCKET)
     .upload(storagePath, file.content, {
@@ -111,34 +156,27 @@ export const generateReconciliationRunResult = async (input: {
       }
     }
 
-    const generationError = new ReconciliationGenerationError(
-      `No fue posible guardar el archivo: ${uploadError.message}`
-    )
-    await createFailedRun({
-      configId: config.id,
-      ownerClientId: input.ownerClient.id,
-      reconciledDate: input.reconciledDate,
-      externalClientIds,
-      error: generationError,
-      repository: input.reconciliationRepository,
-    })
-    throw generationError
+    throw new ReconciliationGenerationError(`No fue posible guardar el archivo: ${uploadError.message}`)
   }
 
   let run: ReconciliationRun
   try {
-    run = await input.reconciliationRepository.createRun({
-      configId: config.id,
+    const runInput = {
+      configId: input.config.id,
       ownerClientId: input.ownerClient.id,
+      subjectClientId: input.subject.client.id,
       reconciledDate: input.reconciledDate,
       filename: file.filename,
       storagePath,
-      status: "generated",
+      status: "generated" as const,
       transactionCount: file.transactionCount,
       totalAmount: file.totalAmount,
       includedExternalClientIds: externalClientIds,
       generatedAt: new Date().toISOString(),
-    })
+    }
+    run = existingRun
+      ? await input.reconciliationRepository.updateGeneratedRun({ ...runInput, id: existingRun.id })
+      : await input.reconciliationRepository.createRun(runInput)
   } catch (error) {
     if (isConflictError(error)) {
       const existing = await waitForExistingRun(input)
@@ -150,13 +188,13 @@ export const generateReconciliationRunResult = async (input: {
     throw error
   }
 
-  if (!config.sftpEnabled) {
+  if (!input.config.sftpEnabled) {
     return { run, reused: false, sftpAttempted: false }
   }
 
   try {
     await uploadReconciliationFileToSftp({
-      config,
+      config: input.config,
       content: file.content,
       filename: file.filename,
     })
@@ -225,10 +263,18 @@ export const retryReconciliationSftpSend = async (input: {
   }
 }
 
-const listIncludedExternalClientIds = async (input: {
+interface GenerationSubject {
+  client: Client
+  externalClientIds: number[]
+  reconciliationUsername: string | null
+}
+
+const listGenerationSubjects = async (input: {
+  configId: string
   ownerClient: Client
   repository: ScopeRepository
-}) => {
+  reconciliationRepository: ReconciliationRepository
+}): Promise<GenerationSubject[]> => {
   if (input.ownerClient.clientKind === "child") {
     throw new ReconciliationGenerationError("Child clients cannot own reconciliation")
   }
@@ -237,24 +283,37 @@ const listIncludedExternalClientIds = async (input: {
     if (input.ownerClient.externalClientId === null) {
       throw new ReconciliationGenerationError("Standalone client is missing external id")
     }
-    return [input.ownerClient.externalClientId]
+    const config = await input.reconciliationRepository.getConfigByOwnerClientId(input.ownerClient.id)
+    if (!config?.reconciliationUsername) {
+      throw new ReconciliationGenerationError("Standalone client is missing reconciliation username")
+    }
+    return [{
+      client: input.ownerClient,
+      externalClientIds: [input.ownerClient.externalClientId],
+      reconciliationUsername: config.reconciliationUsername,
+    }]
   }
 
   const childClients = await input.repository.listChildClientsForParent(input.ownerClient.id)
-  const parentExternalIds =
-    input.ownerClient.externalClientId === null ? [] : [input.ownerClient.externalClientId]
-
-  return Array.from(
-    new Set(
-      [
-        ...parentExternalIds,
-        ...childClients
-          .filter((client) => client.isActive)
-          .map((client) => client.externalClientId)
-          .filter((externalClientId): externalClientId is number => externalClientId !== null),
-      ]
-    )
+  const childConfigs = await input.reconciliationRepository.listChildConfigsByConfigId(input.configId)
+  const usernameByChildId = new Map(
+    childConfigs.map((childConfig) => [childConfig.childClientId, childConfig.reconciliationUsername])
   )
+
+  return childClients
+    .filter((client) => client.isActive)
+    .filter((client) => client.externalClientId !== null)
+    .map((client) => {
+      const reconciliationUsername = usernameByChildId.get(client.id) ?? null
+
+      return {
+        client,
+        externalClientIds: [client.externalClientId as number],
+        reconciliationUsername: reconciliationUsername && isValidReconciliationUsername(reconciliationUsername)
+          ? reconciliationUsername
+          : null,
+      }
+    })
 }
 
 const getPositiveIntegerEnv = (name: string, fallback: number) => {
@@ -264,12 +323,14 @@ const getPositiveIntegerEnv = (name: string, fallback: number) => {
 
 const waitForExistingRun = async (input: {
   ownerClient: Client
+  subject: GenerationSubject
   reconciledDate: string
   reconciliationRepository: ReconciliationRepository
 }) => {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const existingRun = await input.reconciliationRepository.getRunByOwnerAndDate({
       ownerClientId: input.ownerClient.id,
+      subjectClientId: input.subject.client.id,
       reconciledDate: input.reconciledDate,
     })
 
@@ -299,15 +360,27 @@ const isConflictError = (error: unknown) => {
 const createFailedRun = async (input: {
   configId: string
   ownerClientId: string
+  subjectClientId: string
   reconciledDate: string
   externalClientIds: number[]
   error: Error
   repository: ReconciliationRepository
-}) => {
+}): Promise<ReconciliationRun | null> => {
   try {
-    await input.repository.createRun({
+    const existingRun = await input.repository.getRunByOwnerAndDate({
+      ownerClientId: input.ownerClientId,
+      subjectClientId: input.subjectClientId,
+      reconciledDate: input.reconciledDate,
+    })
+
+    if (existingRun?.status === "generation_failed") {
+      return existingRun
+    }
+
+    return await input.repository.createRun({
       configId: input.configId,
       ownerClientId: input.ownerClientId,
+      subjectClientId: input.subjectClientId,
       reconciledDate: input.reconciledDate,
       filename: null,
       storagePath: null,
@@ -319,6 +392,7 @@ const createFailedRun = async (input: {
     })
   } catch {
     // The original generation error is more useful than a failed error-record insert.
+    return null
   }
 }
 

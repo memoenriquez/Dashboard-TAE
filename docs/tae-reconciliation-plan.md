@@ -8,7 +8,7 @@ This plan is still in definition mode. It documents the intended product and tec
 
 - Route: `/dashboard/reconciliations`.
 - Configurable owners: active `parent` and `standalone` clients.
-- Non-configurable clients: `child`; included through parent group membership.
+- Non-configurable clients: `child`; each active child under an enabled parent gets its own TXT file using a parent-specific child username.
 - Editor: internal admin only.
 - Viewer: internal admin plus parent/standalone client users for their own runs.
 - Operational owner: internal admin / operations owns daily failures and SFTP retries.
@@ -33,7 +33,7 @@ create table public.reconciliation_configs (
   id uuid primary key default gen_random_uuid(),
   owner_client_id uuid not null references public.clients(id) on delete cascade,
   is_enabled boolean not null default false,
-  reconciliation_username text not null,
+  reconciliation_username text,
   cutoff_timezone text not null,
   filename_time_difference text not null,
   sftp_enabled boolean not null default false,
@@ -49,6 +49,21 @@ create table public.reconciliation_configs (
 );
 ```
 
+Table: `reconciliation_child_configs`
+
+```sql
+create table public.reconciliation_child_configs (
+  id uuid primary key default gen_random_uuid(),
+  config_id uuid not null references public.reconciliation_configs(id) on delete cascade,
+  child_client_id uuid not null references public.clients(id) on delete cascade,
+  reconciliation_username text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (config_id, child_client_id),
+  unique (config_id, reconciliation_username)
+);
+```
+
 Note: parent/standalone ownership cannot be enforced with a simple check constraint because it depends on `clients.client_kind`. Enforce it in trusted server code and, if needed later, with a trigger.
 
 Table: `reconciliation_runs`
@@ -58,6 +73,7 @@ create table public.reconciliation_runs (
   id uuid primary key default gen_random_uuid(),
   config_id uuid not null references public.reconciliation_configs(id),
   owner_client_id uuid not null references public.clients(id),
+  subject_client_id uuid not null references public.clients(id),
   reconciled_date date not null,
   filename text,
   storage_path text,
@@ -77,7 +93,7 @@ create table public.reconciliation_runs (
   generated_at timestamptz,
   sent_at timestamptz,
   created_at timestamptz not null default now(),
-  unique (owner_client_id, reconciled_date)
+  unique (owner_client_id, subject_client_id, reconciled_date)
 );
 ```
 
@@ -137,7 +153,7 @@ Validation:
 - `authorization` is required, numeric, max 10 digits, left-padded to 10.
 - `soldAmount` must be an integer from 0 to 9999, left-padded to 4.
 - `occurredAt` must fall inside the reconciled day for the config `cutoff_timezone`.
-- If any included transaction fails validation, mark `generation_failed` and do not upload/send.
+- If any included transaction fails validation, mark that subject run `generation_failed` and do not upload/send that file. Sibling child files continue independently.
 - If there are zero successful transactions, generate a header-only file.
 - Use CRLF (`\r\n`) line endings because the provider format is a `.TXT` file shown in a Windows/Notepad context.
 - Manual generation is limited to dates up to 90 days in the past.
@@ -164,7 +180,7 @@ America/Tijuana
 Storage path:
 
 ```text
-{owner_client_id}/{yyyy}/{MM}/{filename}
+{owner_client_id}/{subject_client_id}/{yyyy}/{MM}/{filename}
 ```
 
 Remote SFTP path:
@@ -181,7 +197,7 @@ Page data loader:
 
 - Resolve current user/profile with existing auth flow.
 - Internal admin: list parent/standalone clients and their configs/runs.
-- Client user: if parent/standalone, load own config/runs; if child, show no access state.
+- Client user: if parent/standalone, load own config/runs; parent users see child-subject files. If child, show no access state.
 
 API routes:
 
@@ -280,7 +296,7 @@ Final PR boundaries are intentionally not fixed yet. At implementation time, cho
 
 ## Operational Rules
 
-- If a run already exists for `owner_client_id + reconciled_date`, automatic cron must not regenerate, replace, or resend it. Return `reused: true`, `created: false`, and `sftpAttempted: false`; use manual resend for the stored file.
+- If a successful run already exists for `owner_client_id + subject_client_id + reconciled_date`, automatic cron must not regenerate, replace, or resend it. Return `reused: true`, `created: false`, and `sftpAttempted: false`; use manual resend for the stored file. A `generation_failed` run may be updated into success after config/source data is fixed.
 - Manual generation for an existing date should show the existing run instead of overwriting it in v1.
 - `generated` means the file exists in private storage and SFTP is disabled or no send attempt has completed yet.
 - SFTP retry updates the same run: increment `send_attempt_count`, update `last_send_error` on failure, and set `sent_at` on success.
@@ -297,7 +313,7 @@ Final PR boundaries are intentionally not fixed yet. At implementation time, cho
 - A failed run for one date does not block future daily runs for the same client.
 - Config changes affect future runs only. Existing generated files remain immutable evidence and are not regenerated by config edits.
 - SFTP delivery cannot be enabled while daily file generation is disabled.
-- Concurrent cron/manual generation for the same `owner_client_id + reconciled_date` relies on the unique constraint. One request creates the run; the other returns the existing run as `reused`. No custom distributed lock in v1.
+- Concurrent cron/manual generation for the same `owner_client_id + subject_client_id + reconciled_date` relies on the unique constraint. One request creates the run; the other returns the existing run as `reused`. No custom distributed lock in v1.
 
 ## Reconciliation Query Limits
 

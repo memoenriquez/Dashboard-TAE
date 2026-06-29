@@ -32,13 +32,14 @@ interface ClientRecord {
   displayName: string
   clientKind: "parent" | "child" | "standalone"
   isActive: boolean
+  parentClientId?: string | null
 }
 
 interface ReconciliationConfigRecord {
   id: string
   ownerClientId: string
   isEnabled: boolean
-  reconciliationUsername: string
+  reconciliationUsername: string | null
   cutoffTimezone: string
   filenameTimeDifference: string
   sftpEnabled: boolean
@@ -52,6 +53,7 @@ interface ReconciliationConfigRecord {
 interface ReconciliationRunRecord {
   id: string
   ownerClientId: string
+  subjectClientId: string
   reconciledDate: string
   filename: string | null
   status: "generated" | "sent" | "send_failed" | "generation_failed"
@@ -62,9 +64,17 @@ interface ReconciliationRunRecord {
   internalError?: string | null
 }
 
+interface ReconciliationChildConfigRecord {
+  id: string
+  configId: string
+  childClientId: string
+  reconciliationUsername: string
+}
+
 export function ReconciliationDashboard() {
   const [clients, setClients] = useState<ClientRecord[]>([])
   const [configs, setConfigs] = useState<ReconciliationConfigRecord[]>([])
+  const [childConfigs, setChildConfigs] = useState<ReconciliationChildConfigRecord[]>([])
   const [runs, setRuns] = useState<ReconciliationRunRecord[]>([])
   const [isInternalAdmin, setIsInternalAdmin] = useState(false)
   const [selectedClientId, setSelectedClientId] = useState("")
@@ -80,6 +90,12 @@ export function ReconciliationDashboard() {
   const selectedConfig = selectedClient
     ? configs.find((config) => config.ownerClientId === selectedClient.id)
     : null
+  const selectedChildClients = selectedClient?.clientKind === "parent"
+    ? clients.filter((client) => client.parentClientId === selectedClient.id && client.isActive && client.externalClientId !== null)
+    : []
+  const selectedChildConfigs = selectedConfig
+    ? childConfigs.filter((childConfig) => childConfig.configId === selectedConfig.id)
+    : []
   const selectedRuns = selectedClient
     ? runs.filter((run) => run.ownerClientId === selectedClient.id)
     : []
@@ -100,18 +116,21 @@ export function ReconciliationDashboard() {
       const payload = (await response.json()) as {
         clients: ClientRecord[]
         configs: ReconciliationConfigRecord[]
+        childConfigs: ReconciliationChildConfigRecord[]
         runs: ReconciliationRunRecord[]
         isInternalAdmin: boolean
       }
       const configurableClients = payload.clients.filter((client) => client.clientKind !== "child")
       const nextClientId = selectedClientIdRef.current || configurableClients[0]?.id || ""
-      setClients(configurableClients)
+      setClients(payload.clients)
       setConfigs(payload.configs)
+      setChildConfigs(payload.childConfigs ?? [])
       setRuns(payload.runs)
       setIsInternalAdmin(payload.isInternalAdmin)
       selectedClientIdRef.current = nextClientId
       setSelectedClientId(nextClientId)
-      setForm(getConfigForm(payload.configs.find((config) => config.ownerClientId === nextClientId)))
+      const nextConfig = payload.configs.find((config) => config.ownerClientId === nextClientId)
+      setForm(getConfigForm(nextConfig, payload.childConfigs ?? []))
     } catch {
       toast.error("No fue posible cargar conciliaciones en este momento.")
     } finally {
@@ -173,10 +192,16 @@ export function ReconciliationDashboard() {
         return
       }
       const payload = (await response.json()) as { run: ReconciliationRunRecord; reused: boolean }
+      const resultRuns = "runs" in payload ? (payload as unknown as { runs: { run: ReconciliationRunRecord; reused: boolean }[] }).runs : []
       if (payload.reused) {
         toast.info("Ya existía un archivo para esa fecha. No se generó ni reenvió.", { id: toastId })
-      } else {
+      } else if (resultRuns.length > 1) {
+        const failed = resultRuns.filter((item) => item.run.status === "generation_failed" || item.run.status === "send_failed").length
+        toast[failed > 0 ? "error" : "success"](`Generación terminada: ${resultRuns.length - failed}/${resultRuns.length} archivos listos.`, { id: toastId })
+      } else if (payload.run) {
         showRunResultToast(payload.run, toastId, "Archivo generado.")
+      } else {
+        toast.info("No había archivos para generar.", { id: toastId })
       }
       await loadData()
     } catch {
@@ -270,7 +295,7 @@ export function ReconciliationDashboard() {
           onSelect={(clientId) => {
             selectedClientIdRef.current = clientId
             setSelectedClientId(clientId)
-            setForm(getConfigForm(configs.find((config) => config.ownerClientId === clientId)))
+            setForm(getConfigForm(configs.find((config) => config.ownerClientId === clientId), childConfigs))
           }}
         />
       ) : null}
@@ -294,11 +319,12 @@ export function ReconciliationDashboard() {
           <AdminConfigCard
             canGenerate={Boolean(selectedConfig?.isEnabled)}
             client={selectedClient}
+            childClients={selectedChildClients}
             config={selectedConfig ?? null}
             form={form}
             generationDate={generationDate}
             generationDateBounds={generationDateBounds}
-            isDirty={serializeConfigForm(form) !== serializeConfigForm(getConfigForm(selectedConfig ?? undefined))}
+            isDirty={serializeConfigForm(form) !== serializeConfigForm(getConfigForm(selectedConfig ?? undefined, selectedChildConfigs))}
             isLoading={isLoading}
             isSubmitting={isSubmitting}
             onFormChange={setForm}
@@ -317,6 +343,7 @@ export function ReconciliationDashboard() {
           isSubmitting={isSubmitting}
           onRetrySend={retrySftpSend}
           config={selectedConfig ?? null}
+          clients={clients}
           runs={selectedRuns}
         />
       </div>
@@ -330,6 +357,8 @@ function AdminClientSelector(props: {
   selectedClient?: ClientRecord
   onSelect: (clientId: string) => void
 }) {
+  const configurableClients = props.clients.filter((client) => client.clientKind !== "child")
+
   return (
     <Card className="shadow-sm">
       <CardHeader className="border-b bg-muted/20">
@@ -340,7 +369,7 @@ function AdminClientSelector(props: {
         <Select value={props.selectedClient?.id ?? ""} onValueChange={(value) => props.onSelect(value ?? "")}>
           <SelectTrigger className="bg-background"><SelectValue placeholder="Selecciona cliente" /></SelectTrigger>
           <SelectContent>
-            {props.clients.map((client) => (
+            {configurableClients.map((client) => (
               <SelectItem key={client.id} value={client.id}>
                 {client.displayName} · {getClientKindLabel(client.clientKind)}
               </SelectItem>
@@ -392,7 +421,7 @@ function ExceptionQueue(props: {
         ) : (
           <>
             {visibleRuns.map((run) => {
-              const client = props.clients.find((item) => item.id === run.ownerClientId)
+              const client = props.clients.find((item) => item.id === run.subjectClientId)
               const config = props.configs.find((item) => item.ownerClientId === run.ownerClientId) ?? null
               const sendRelated = run.status !== "generation_failed"
 
@@ -441,6 +470,7 @@ function ExceptionQueue(props: {
 function AdminConfigCard(props: {
   canGenerate: boolean
   client?: ClientRecord
+  childClients: ClientRecord[]
   config: ReconciliationConfigRecord | null
   form: ConfigFormState
   generationDate: string
@@ -485,11 +515,34 @@ function AdminConfigCard(props: {
                 <SelectContent><SelectItem value="true">Activo</SelectItem><SelectItem value="false">Inactivo</SelectItem></SelectContent>
               </Select>
             </Field>
-            <Field>
-              <FieldLabel>Usuario conciliación</FieldLabel>
-              <Input value={props.form.reconciliationUsername} onChange={(event) => props.onFormChange({ ...props.form, reconciliationUsername: event.target.value })} />
-              <FieldDescription>Se usa en el nombre del archivo, no se deriva del nombre del cliente.</FieldDescription>
-            </Field>
+            {props.client?.clientKind === "standalone" ? (
+              <Field>
+                <FieldLabel>Usuario conciliación</FieldLabel>
+                <Input value={props.form.reconciliationUsername} onChange={(event) => props.onFormChange({ ...props.form, reconciliationUsername: event.target.value })} />
+                <FieldDescription>Se usa en el nombre del archivo, no se deriva del nombre del cliente.</FieldDescription>
+              </Field>
+            ) : (
+              <div className="rounded-lg border bg-background p-3">
+                <p className="text-sm font-medium">Usuarios por asociado</p>
+                <p className="mb-3 text-xs text-muted-foreground">Cada asociado activo genera un TXT independiente con este usuario en el nombre.</p>
+                <div className="grid gap-3">
+                  {props.childClients.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Sin asociados activos con identificador TAE.</p>
+                  ) : props.childClients.map((child) => (
+                    <Field key={child.id}>
+                      <FieldLabel>{child.displayName}</FieldLabel>
+                      <Input
+                        value={props.form.childConfigs.find((item) => item.childClientId === child.id)?.reconciliationUsername ?? ""}
+                        onChange={(event) => props.onFormChange({
+                          ...props.form,
+                          childConfigs: upsertChildConfig(props.form.childConfigs, child.id, event.target.value),
+                        })}
+                      />
+                    </Field>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
                 <FieldLabel>Zona de corte</FieldLabel>
@@ -586,6 +639,7 @@ function ClientSummaryCard(props: {
 
 function RunHistoryCard(props: {
   client?: ClientRecord
+  clients: ClientRecord[]
   config: ReconciliationConfigRecord | null
   isInternalAdmin: boolean
   isSubmitting: boolean
@@ -609,7 +663,7 @@ function RunHistoryCard(props: {
           <div className="overflow-x-auto">
             <Table>
               {props.isInternalAdmin ? (
-                <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Nombre</TableHead><TableHead>Archivo</TableHead><TableHead>Entrega</TableHead><TableHead>Tx</TableHead><TableHead>Monto</TableHead><TableHead>Diagnóstico</TableHead><TableHead>Acción</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Asociado</TableHead><TableHead>Nombre</TableHead><TableHead>Archivo</TableHead><TableHead>Entrega</TableHead><TableHead>Tx</TableHead><TableHead>Monto</TableHead><TableHead>Diagnóstico</TableHead><TableHead>Acción</TableHead></TableRow></TableHeader>
               ) : (
                 <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Archivo</TableHead><TableHead>Estado</TableHead><TableHead>Tx</TableHead><TableHead>Monto</TableHead><TableHead>Acción</TableHead></TableRow></TableHeader>
               )}
@@ -617,6 +671,7 @@ function RunHistoryCard(props: {
                 {props.runs.map((run) => (
                   <TableRow key={run.id}>
                     <TableCell>{run.reconciledDate}</TableCell>
+                    {props.isInternalAdmin ? <TableCell>{getRunSubjectLabel(run, props.clients)}</TableCell> : null}
                     <TableCell className="max-w-[260px] truncate">{run.filename ?? "No disponible"}</TableCell>
                     {props.isInternalAdmin ? (
                       <>
@@ -878,7 +933,10 @@ const serializeConfigForm = (form: ConfigFormState) => JSON.stringify(form)
 const hasAnySftpValue = (form: ConfigFormState) =>
   Boolean(form.sftpHost || form.sftpUsername || form.sftpRemotePath || form.sftpPasswordSecretName)
 
-const getConfigForm = (config?: ReconciliationConfigRecord) => ({
+const getConfigForm = (
+  config?: ReconciliationConfigRecord,
+  childConfigs: ReconciliationChildConfigRecord[] = []
+) => ({
   isEnabled: config?.isEnabled ?? false,
   reconciliationUsername: config?.reconciliationUsername ?? "",
   cutoffTimezone: config?.cutoffTimezone ?? "America/Mexico_City",
@@ -889,7 +947,41 @@ const getConfigForm = (config?: ReconciliationConfigRecord) => ({
   sftpUsername: config?.sftpUsername ?? "",
   sftpRemotePath: config?.sftpRemotePath ?? "",
   sftpPasswordSecretName: config?.sftpPasswordSecretName ?? "",
+  childConfigs: config
+    ? childConfigs
+        .filter((childConfig) => childConfig.configId === config.id)
+        .map((childConfig) => ({
+          childClientId: childConfig.childClientId,
+          reconciliationUsername: childConfig.reconciliationUsername,
+        }))
+    : [],
 })
+
+const upsertChildConfig = (
+  childConfigs: ConfigFormState["childConfigs"],
+  childClientId: string,
+  reconciliationUsername: string
+) => {
+  const nextUsername = reconciliationUsername.trim()
+  const existing = childConfigs.find((childConfig) => childConfig.childClientId === childClientId)
+
+  if (!nextUsername) {
+    return childConfigs.filter((childConfig) => childConfig.childClientId !== childClientId)
+  }
+
+  if (existing) {
+    return childConfigs.map((childConfig) =>
+      childConfig.childClientId === childClientId
+        ? { ...childConfig, reconciliationUsername }
+        : childConfig
+    )
+  }
+
+  return [...childConfigs, { childClientId, reconciliationUsername }]
+}
+
+const getRunSubjectLabel = (run: ReconciliationRunRecord, clients: ClientRecord[]) =>
+  clients.find((client) => client.id === run.subjectClientId)?.displayName ?? "-"
 
 const getYesterdayDate = () => new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
 

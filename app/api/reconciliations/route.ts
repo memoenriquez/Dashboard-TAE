@@ -12,13 +12,21 @@ export const GET = withApiErrorHandling(async () => {
     const profile = context.resolvedProfile.profile
 
     if (profile.isInternalAdmin) {
-      const [clients, configs, runs] = await Promise.all([
+      const [clients, configs, runs, childConfigs, groups] = await Promise.all([
         context.metadataRepository.listClients(),
         reconciliationRepository.listConfigs(),
         reconciliationRepository.listRuns(),
+        reconciliationRepository.listChildConfigs(),
+        context.metadataRepository.listGroupsWithMembers(),
       ])
 
-      return Response.json({ clients, configs, runs, isInternalAdmin: true })
+      return Response.json({
+        clients: attachParentClientIds(clients, groups),
+        configs,
+        childConfigs,
+        runs,
+        isInternalAdmin: true,
+      })
     }
 
     const client = context.resolvedProfile.client
@@ -26,18 +34,40 @@ export const GET = withApiErrorHandling(async () => {
       return Response.json({ clients: [], configs: [], runs: [] })
     }
 
-    const [config, runs] = await Promise.all([
+    const [config, runs, childClients] = await Promise.all([
       reconciliationRepository.getConfigByOwnerClientId(client.id),
       reconciliationRepository.listRunsByOwnerClientId(client.id),
+      client.clientKind === "parent"
+        ? context.metadataRepository.listChildClientsForParent(client.id)
+        : Promise.resolve([]),
     ])
+    const childConfigs = config
+      ? await reconciliationRepository.listChildConfigsByConfigId(config.id)
+      : []
 
     return Response.json({
-      clients: [client],
+      clients: [client, ...childClients.map((child) => ({ ...child, parentClientId: client.id }))],
       configs: config ? [maskClientConfig(config)] : [],
+      childConfigs,
       runs: runs.map(maskClientRun),
       isInternalAdmin: false,
     })
 })
+
+const attachParentClientIds = <TClient extends { id: string }>(
+  clients: TClient[],
+  groups: { parentClientId: string; childClients: { id: string }[] }[]
+) => {
+  const parentByChildId = new Map<string, string>()
+  groups.forEach((group) => {
+    group.childClients.forEach((child) => parentByChildId.set(child.id, group.parentClientId))
+  })
+
+  return clients.map((client) => ({
+    ...client,
+    parentClientId: parentByChildId.get(client.id) ?? null,
+  }))
+}
 
 const maskClientConfig = <TConfig extends {
   sftpHost: string | null
@@ -57,6 +87,7 @@ const maskClientConfig = <TConfig extends {
 const maskClientRun = <TRun extends {
   id: string
   ownerClientId: string
+  subjectClientId: string
   reconciledDate: string
   filename: string | null
   status: string
@@ -66,6 +97,7 @@ const maskClientRun = <TRun extends {
 }>(run: TRun) => ({
   id: run.id,
   ownerClientId: run.ownerClientId,
+  subjectClientId: run.subjectClientId,
   reconciledDate: run.reconciledDate,
   filename: run.filename,
   status: run.status,

@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type {
   CreateReconciliationRunInput,
+  ReconciliationChildConfig,
   ReconciliationConfig,
   ReconciliationConfigInput,
   ReconciliationRun,
@@ -16,15 +17,19 @@ export interface ReconciliationRepository {
   listConfigs: () => Promise<ReconciliationConfig[]>
   listRuns: () => Promise<ReconciliationRun[]>
   listRunsWithFilesBeforeDate: (date: string) => Promise<ReconciliationRun[]>
+  listChildConfigs: () => Promise<ReconciliationChildConfig[]>
+  listChildConfigsByConfigId: (configId: string) => Promise<ReconciliationChildConfig[]>
   getConfigByOwnerClientId: (ownerClientId: string) => Promise<ReconciliationConfig | null>
   upsertConfig: (input: ReconciliationConfigInput) => Promise<ReconciliationConfig>
   listRunsByOwnerClientId: (ownerClientId: string) => Promise<ReconciliationRun[]>
   getRunById: (id: string) => Promise<ReconciliationRun | null>
   getRunByOwnerAndDate: (input: {
     ownerClientId: string
+    subjectClientId: string
     reconciledDate: string
   }) => Promise<ReconciliationRun | null>
   createRun: (input: CreateReconciliationRunInput) => Promise<ReconciliationRun>
+  updateGeneratedRun: (input: CreateReconciliationRunInput & { id: string }) => Promise<ReconciliationRun>
   markRunFileDeleted: (input: { id: string; fileDeletedAt: string }) => Promise<void>
   updateSendResult: (input: UpdateReconciliationSendResultInput) => Promise<ReconciliationRun>
 }
@@ -71,6 +76,30 @@ export const createReconciliationRepository = (
 
     return ((data ?? []) as JsonRecord[]).map(mapRun)
   },
+  listChildConfigs: async () => {
+    const { data, error } = await supabase
+      .from("reconciliation_child_configs")
+      .select("*")
+      .order("created_at", { ascending: false })
+
+    if (error) {
+      throw error
+    }
+
+    return ((data ?? []) as JsonRecord[]).map(mapChildConfig)
+  },
+  listChildConfigsByConfigId: async (configId) => {
+    const { data, error } = await supabase
+      .from("reconciliation_child_configs")
+      .select("*")
+      .eq("config_id", configId)
+
+    if (error) {
+      throw error
+    }
+
+    return ((data ?? []) as JsonRecord[]).map(mapChildConfig)
+  },
   getConfigByOwnerClientId: async (ownerClientId) => {
     const { data, error } = await supabase
       .from("reconciliation_configs")
@@ -111,6 +140,8 @@ export const createReconciliationRepository = (
       throw error
     }
 
+    await replaceChildConfigs(supabase, mapConfig(data as JsonRecord).id, input.childConfigs)
+
     return mapConfig(data as JsonRecord)
   },
   listRunsByOwnerClientId: async (ownerClientId) => {
@@ -144,6 +175,7 @@ export const createReconciliationRepository = (
       .from("reconciliation_runs")
       .select("*")
       .eq("owner_client_id", input.ownerClientId)
+      .eq("subject_client_id", input.subjectClientId)
       .eq("reconciled_date", input.reconciledDate)
       .maybeSingle()
 
@@ -159,6 +191,7 @@ export const createReconciliationRepository = (
       .insert({
         config_id: input.configId,
         owner_client_id: input.ownerClientId,
+        subject_client_id: input.subjectClientId,
         reconciled_date: input.reconciledDate,
         filename: input.filename,
         storage_path: input.storagePath,
@@ -169,6 +202,31 @@ export const createReconciliationRepository = (
         internal_error: input.internalError ?? null,
         generated_at: input.generatedAt ?? null,
       })
+      .select("*")
+      .single()
+
+    if (error) {
+      throw error
+    }
+
+    return mapRun(data as JsonRecord)
+  },
+  updateGeneratedRun: async (input) => {
+    const { data, error } = await supabase
+      .from("reconciliation_runs")
+      .update({
+        filename: input.filename,
+        storage_path: input.storagePath,
+        status: input.status,
+        transaction_count: input.transactionCount,
+        total_amount: input.totalAmount,
+        included_external_client_ids: input.includedExternalClientIds,
+        internal_error: input.internalError ?? null,
+        generated_at: input.generatedAt ?? null,
+        last_send_error: null,
+        sent_at: null,
+      })
+      .eq("id", input.id)
       .select("*")
       .single()
 
@@ -211,11 +269,42 @@ export const createReconciliationRepository = (
   },
 })
 
+const replaceChildConfigs = async (
+  supabase: SupabaseClient,
+  configId: string,
+  childConfigs: ReconciliationConfigInput["childConfigs"]
+) => {
+  const { error: deleteError } = await supabase
+    .from("reconciliation_child_configs")
+    .delete()
+    .eq("config_id", configId)
+
+  if (deleteError) {
+    throw deleteError
+  }
+
+  if (childConfigs.length === 0) {
+    return
+  }
+
+  const { error: insertError } = await supabase
+    .from("reconciliation_child_configs")
+    .insert(childConfigs.map((childConfig) => ({
+      config_id: configId,
+      child_client_id: childConfig.childClientId,
+      reconciliation_username: childConfig.reconciliationUsername,
+    })))
+
+  if (insertError) {
+    throw insertError
+  }
+}
+
 const mapConfig = (row: JsonRecord): ReconciliationConfig => ({
   id: String(row.id),
   ownerClientId: String(row.owner_client_id),
   isEnabled: Boolean(row.is_enabled),
-  reconciliationUsername: String(row.reconciliation_username),
+  reconciliationUsername: row.reconciliation_username ? String(row.reconciliation_username) : null,
   cutoffTimezone: row.cutoff_timezone as ReconciliationConfig["cutoffTimezone"],
   filenameTimeDifference: String(row.filename_time_difference),
   sftpEnabled: Boolean(row.sftp_enabled),
@@ -230,10 +319,20 @@ const mapConfig = (row: JsonRecord): ReconciliationConfig => ({
   updatedAt: String(row.updated_at),
 })
 
+const mapChildConfig = (row: JsonRecord): ReconciliationChildConfig => ({
+  id: String(row.id),
+  configId: String(row.config_id),
+  childClientId: String(row.child_client_id),
+  reconciliationUsername: String(row.reconciliation_username),
+  createdAt: String(row.created_at),
+  updatedAt: String(row.updated_at),
+})
+
 const mapRun = (row: JsonRecord): ReconciliationRun => ({
   id: String(row.id),
   configId: String(row.config_id),
   ownerClientId: String(row.owner_client_id),
+  subjectClientId: String(row.subject_client_id ?? row.owner_client_id),
   reconciledDate: String(row.reconciled_date),
   filename: row.filename ? String(row.filename) : null,
   storagePath: row.storage_path ? String(row.storage_path) : null,
