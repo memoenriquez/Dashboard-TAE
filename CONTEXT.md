@@ -189,7 +189,7 @@ Cliente que puede tener configuracion propia de conciliacion: **Cliente Padre** 
 _Avoid_: cliente hijo configurable, usuario del dashboard
 
 **Configuracion de Conciliacion**:
-Metadata administrada por un **Administrador Interno** para una **Cuenta Conciliable**: activacion, usuarios de conciliacion por hijo cuando aplica, zona de corte, diferencia en nombre de archivo y datos SFTP.
+Metadata administrada por un **Administrador Interno** para una **Cuenta Conciliable**: activacion, usuarios de conciliacion por hijo cuando aplica, zona de corte, formatos de fecha, diferencia en nombre de archivo y datos SFTP.
 _Avoid_: preferencias de usuario final, configuracion por sucursal
 
 **Usuario de Conciliacion**:

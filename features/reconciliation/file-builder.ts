@@ -12,12 +12,14 @@ export class ReconciliationFileError extends Error {
 export const createReconciliationFile = (
   input: ReconciliationFileInput
 ): ReconciliationFileResult => {
-  const dateStamp = formatDateStamp(input.reconciledDate, input.cutoffTimezone)
+  const filenameDateStamp = formatDateStamp(input.reconciledDate, input.cutoffTimezone, input.filenameDateFormat)
+  const contentDateStamp = formatDateStamp(input.reconciledDate, input.cutoffTimezone, input.contentDateFormat)
+  const validationDateStamp = formatDateStamp(input.reconciledDate, input.cutoffTimezone, "ddmmaaaa")
   const successfulTransactions = input.transactions.filter(
     (transaction) => transaction.status === "successful"
   )
   const validationErrors = successfulTransactions
-    .map((transaction) => validateTransaction(transaction, dateStamp, input.cutoffTimezone))
+    .map((transaction) => validateTransaction(transaction, validationDateStamp, input.cutoffTimezone))
     .filter((error): error is string => Boolean(error))
 
   if (validationErrors.length > 0) {
@@ -30,10 +32,10 @@ export const createReconciliationFile = (
   }
 
   const details = successfulTransactions.map((transaction) =>
-    formatDetailLine(transaction, dateStamp)
+    formatDetailLine(transaction, contentDateStamp)
   )
-  const filename = `${input.reconciliationUsername}_${dateStamp}_TAE_${input.filenameTimeDifference}.txt`
-  const lines = [`HDR${dateStamp}`, ...details]
+  const filename = `${input.reconciliationUsername}_${filenameDateStamp}_TAE_${input.filenameTimeDifference}.txt`
+  const lines = [`HDR${contentDateStamp}`, ...details]
 
   return {
     filename,
@@ -65,7 +67,7 @@ const validateTransaction = (
     return `Invalid amount for transaction ${transaction.ticket}`
   }
 
-  const transactionDateStamp = formatDateStamp(new Date(transaction.occurredAt), cutoffTimezone)
+  const transactionDateStamp = formatDateStamp(new Date(transaction.occurredAt), cutoffTimezone, "ddmmaaaa")
   if (transactionDateStamp !== dateStamp) {
     return `Transaction ${transaction.ticket} is outside reconciled date`
   }
@@ -84,7 +86,11 @@ const formatDetailLine = (
 
 const isTenDigitValue = (value: string) => /^\d{10}$/.test(value)
 
-const formatDateStamp = (date: Date, timeZone: string) => {
+const formatDateStamp = (
+  date: Date,
+  timeZone: string,
+  format: ReconciliationFileInput["filenameDateFormat"]
+) => {
   if (Number.isNaN(date.getTime())) {
     throw new ReconciliationFileError("Invalid reconciliation date")
   }
@@ -96,6 +102,10 @@ const formatDateStamp = (date: Date, timeZone: string) => {
     year: "numeric",
   }).formatToParts(date)
   const byType = new Map(parts.map((part) => [part.type, part.value]))
+
+  if (format === "aaaammdd") {
+    return `${byType.get("year")}${byType.get("month")}${byType.get("day")}`
+  }
 
   return `${byType.get("day")}${byType.get("month")}${byType.get("year")}`
 }

@@ -132,6 +132,8 @@ const generateSubjectRun = async (input: {
     file = createReconciliationFile({
       reconciliationUsername: input.subject.reconciliationUsername,
       filenameTimeDifference: input.config.filenameTimeDifference,
+      filenameDateFormat: input.config.filenameDateFormat,
+      contentDateFormat: input.config.contentDateFormat,
       reconciledDate: new Date(`${input.reconciledDate}T12:00:00.000Z`),
       cutoffTimezone: input.config.cutoffTimezone,
       transactions,

@@ -59,6 +59,8 @@ create table if not exists public.reconciliation_configs (
   reconciliation_username text,
   cutoff_timezone text not null,
   filename_time_difference text not null,
+  filename_date_format text not null default 'ddmmaaaa',
+  content_date_format text not null default 'ddmmaaaa',
   delivery_protocol text not null default 'sftp',
   sftp_enabled boolean not null default false,
   sftp_host text,
@@ -70,6 +72,8 @@ create table if not exists public.reconciliation_configs (
   updated_at timestamptz not null default now(),
   unique (owner_client_id),
   constraint reconciliation_sftp_port check (sftp_port between 1 and 65535),
+  constraint reconciliation_filename_date_format_check check (filename_date_format in ('ddmmaaaa', 'aaaammdd')),
+  constraint reconciliation_content_date_format_check check (content_date_format in ('ddmmaaaa', 'aaaammdd')),
   constraint reconciliation_delivery_protocol_check check (delivery_protocol in ('sftp', 'ftp'))
 );
 

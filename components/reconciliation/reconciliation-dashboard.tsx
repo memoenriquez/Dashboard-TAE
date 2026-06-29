@@ -42,6 +42,8 @@ interface ReconciliationConfigRecord {
   reconciliationUsername: string | null
   cutoffTimezone: string
   filenameTimeDifference: string
+  filenameDateFormat: "ddmmaaaa" | "aaaammdd"
+  contentDateFormat: "ddmmaaaa" | "aaaammdd"
   deliveryProtocol: "sftp" | "ftp"
   sftpEnabled: boolean
   sftpHost: string | null
@@ -556,6 +558,14 @@ function AdminConfigCard(props: {
                 <FieldLabel>Diferencia en nombre</FieldLabel>
                 <Input value={props.form.filenameTimeDifference} onChange={(event) => props.onFormChange({ ...props.form, filenameTimeDifference: event.target.value })} />
               </Field>
+              <Field>
+                <FieldLabel>Formato fecha nombre</FieldLabel>
+                <DateFormatSelect value={props.form.filenameDateFormat} onChange={(value) => props.onFormChange({ ...props.form, filenameDateFormat: value })} />
+              </Field>
+              <Field>
+                <FieldLabel>Formato fecha contenido</FieldLabel>
+                <DateFormatSelect value={props.form.contentDateFormat} onChange={(value) => props.onFormChange({ ...props.form, contentDateFormat: value })} />
+              </Field>
             </div>
             <div className="rounded-lg border bg-muted/20 p-3">
               <div className="mb-3 flex items-center justify-between gap-3">
@@ -636,6 +646,21 @@ function ClientSummaryCard(props: {
         )}
       </CardContent>
     </Card>
+  )
+}
+
+function DateFormatSelect(props: {
+  value: ConfigFormState["filenameDateFormat"]
+  onChange: (value: ConfigFormState["filenameDateFormat"]) => void
+}) {
+  return (
+    <Select value={props.value} onValueChange={(value) => props.onChange(value === "aaaammdd" ? "aaaammdd" : "ddmmaaaa")}>
+      <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="ddmmaaaa">ddmmaaaa</SelectItem>
+        <SelectItem value="aaaammdd">aaaammdd</SelectItem>
+      </SelectContent>
+    </Select>
   )
 }
 
@@ -943,6 +968,8 @@ const getConfigForm = (
   reconciliationUsername: config?.reconciliationUsername ?? "",
   cutoffTimezone: config?.cutoffTimezone ?? "America/Mexico_City",
   filenameTimeDifference: config?.filenameTimeDifference ?? "-1",
+  filenameDateFormat: config?.filenameDateFormat ?? "ddmmaaaa",
+  contentDateFormat: config?.contentDateFormat ?? "ddmmaaaa",
   deliveryProtocol: config?.deliveryProtocol ?? "sftp",
   sftpEnabled: config?.sftpEnabled ?? false,
   sftpHost: config?.sftpHost ?? "",

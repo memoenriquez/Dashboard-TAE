@@ -20,6 +20,8 @@ export type MexicanTimezone = (typeof MEXICAN_TIMEZONES)[number]
 export interface ReconciliationFileInput {
   reconciliationUsername: string
   filenameTimeDifference: string
+  filenameDateFormat: ReconciliationDateFormat
+  contentDateFormat: ReconciliationDateFormat
   reconciledDate: Date
   cutoffTimezone: MexicanTimezone
   transactions: NormalizedTransactionRecord[]
@@ -39,6 +41,7 @@ export type ReconciliationRunStatus =
   | "generation_failed"
 
 export type ReconciliationDeliveryProtocol = "sftp" | "ftp"
+export type ReconciliationDateFormat = "ddmmaaaa" | "aaaammdd"
 
 export interface ReconciliationConfig {
   id: string
@@ -47,6 +50,8 @@ export interface ReconciliationConfig {
   reconciliationUsername: string | null
   cutoffTimezone: MexicanTimezone
   filenameTimeDifference: string
+  filenameDateFormat: ReconciliationDateFormat
+  contentDateFormat: ReconciliationDateFormat
   deliveryProtocol: ReconciliationDeliveryProtocol
   sftpEnabled: boolean
   sftpHost: string | null
@@ -116,6 +121,8 @@ export interface ReconciliationConfigInput {
   reconciliationUsername: string | null
   cutoffTimezone: MexicanTimezone
   filenameTimeDifference: string
+  filenameDateFormat: ReconciliationDateFormat
+  contentDateFormat: ReconciliationDateFormat
   deliveryProtocol: ReconciliationDeliveryProtocol
   sftpEnabled: boolean
   sftpHost: string | null

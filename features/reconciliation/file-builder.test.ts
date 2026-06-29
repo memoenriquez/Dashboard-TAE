@@ -26,6 +26,8 @@ describe("createReconciliationFile", () => {
     const file = createReconciliationFile({
       reconciliationUsername: "M3CORP01",
       filenameTimeDifference: "0",
+      filenameDateFormat: "ddmmaaaa",
+      contentDateFormat: "ddmmaaaa",
       reconciledDate: new Date("2026-02-26T12:00:00.000Z"),
       cutoffTimezone: "America/Chihuahua",
       transactions: [
@@ -48,10 +50,27 @@ describe("createReconciliationFile", () => {
     })
   })
 
+  it("formats filename and content dates independently", () => {
+    const file = createReconciliationFile({
+      reconciliationUsername: "M3CORP01",
+      filenameTimeDifference: "0",
+      filenameDateFormat: "aaaammdd",
+      contentDateFormat: "ddmmaaaa",
+      reconciledDate: new Date("2026-02-26T12:00:00.000Z"),
+      cutoffTimezone: "America/Chihuahua",
+      transactions: [baseTransaction],
+    })
+
+    expect(file.filename).toBe("M3CORP01_20260226_TAE_0.txt")
+    expect(file.content).toBe("HDR26022026\r\n65637399320000104548260220260020\r\n")
+  })
+
   it("creates a header-only file when there are no successful transactions", () => {
     const file = createReconciliationFile({
       reconciliationUsername: "CTC001",
       filenameTimeDifference: "-1",
+      filenameDateFormat: "ddmmaaaa",
+      contentDateFormat: "ddmmaaaa",
       reconciledDate: new Date("2026-02-26T12:00:00.000Z"),
       cutoffTimezone: "America/Mexico_City",
       transactions: [{ ...baseTransaction, status: "failed", responseCode: "3" }],
@@ -67,6 +86,8 @@ describe("createReconciliationFile", () => {
       createReconciliationFile({
         reconciliationUsername: "M3CORP01",
         filenameTimeDifference: "0",
+        filenameDateFormat: "ddmmaaaa",
+        contentDateFormat: "ddmmaaaa",
         reconciledDate: new Date("2026-02-26T12:00:00.000Z"),
         cutoffTimezone: "America/Chihuahua",
         transactions: [{ ...baseTransaction, authorization: null }],
@@ -79,6 +100,8 @@ describe("createReconciliationFile", () => {
       createReconciliationFile({
         reconciliationUsername: "M3CORP01",
         filenameTimeDifference: "0",
+        filenameDateFormat: "ddmmaaaa",
+        contentDateFormat: "ddmmaaaa",
         reconciledDate: new Date("2026-02-26T12:00:00.000Z"),
         cutoffTimezone: "America/Chihuahua",
         transactions: [

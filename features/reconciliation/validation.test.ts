@@ -15,7 +15,25 @@ describe("parseReconciliationConfigInput", () => {
 
     expect(input.reconciliationUsername).toBe("CTC_01-TAE")
     expect(input.filenameTimeDifference).toBe("-1")
+    expect(input.filenameDateFormat).toBe("ddmmaaaa")
+    expect(input.contentDateFormat).toBe("ddmmaaaa")
     expect(input.deliveryProtocol).toBe("sftp")
+  })
+
+  it("accepts independent date formats", () => {
+    const input = parseReconciliationConfigInput({
+      ownerClientId: "client-id",
+      isEnabled: true,
+      reconciliationUsername: "CTC",
+      cutoffTimezone: "America/Mexico_City",
+      filenameTimeDifference: "-1",
+      filenameDateFormat: "aaaammdd",
+      contentDateFormat: "ddmmaaaa",
+      sftpEnabled: false,
+    })
+
+    expect(input.filenameDateFormat).toBe("aaaammdd")
+    expect(input.contentDateFormat).toBe("ddmmaaaa")
   })
 
   it("accepts FTP as a delivery protocol", () => {

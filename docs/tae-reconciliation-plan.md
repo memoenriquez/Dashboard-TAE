@@ -37,6 +37,8 @@ create table public.reconciliation_configs (
   reconciliation_username text,
   cutoff_timezone text not null,
   filename_time_difference text not null,
+  filename_date_format text not null default 'ddmmaaaa',
+  content_date_format text not null default 'ddmmaaaa',
   delivery_protocol text not null default 'sftp',
   sftp_enabled boolean not null default false,
   sftp_host text,
@@ -48,6 +50,8 @@ create table public.reconciliation_configs (
   updated_at timestamptz not null default now(),
   unique (owner_client_id),
   constraint reconciliation_sftp_port check (sftp_port between 1 and 65535),
+  constraint reconciliation_filename_date_format_check check (filename_date_format in ('ddmmaaaa', 'aaaammdd')),
+  constraint reconciliation_content_date_format_check check (content_date_format in ('ddmmaaaa', 'aaaammdd')),
   constraint reconciliation_delivery_protocol_check check (delivery_protocol in ('sftp', 'ftp'))
 );
 ```
@@ -134,7 +138,7 @@ Cron portability rule: reconciliation business logic lives in this Next.js proje
 Filename:
 
 ```text
-[reconciliation_username]_[ddMMyyyy]_TAE_[filename_time_difference].txt
+[reconciliation_username]_[configured filename date]_TAE_[filename_time_difference].txt
 ```
 
 Header:
@@ -162,6 +166,7 @@ Validation:
 - Manual generation is limited to dates up to 90 days in the past.
 - `cutoff_timezone` must be one of the configured Mexican IANA timezones.
 - `reconciliation_username` and `filename_time_difference` are filename/SFTP path segments and must be validated before storage or download: username allows only ASCII letters, numbers, `_`, and `-` up to 40 chars; filename difference allows an optional leading `-` and 1-3 digits.
+- `filename_date_format` controls only the filename date segment. `content_date_format` controls the `HDR` and detail-line dates. Both allow `ddmmaaaa` and `aaaammdd`.
 
 Mexican timezones allowed in v1:
 

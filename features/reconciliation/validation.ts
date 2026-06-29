@@ -21,6 +21,8 @@ export const parseReconciliationConfigInput = (
     body.filenameTimeDifference,
     "Missing filename time difference"
   )
+  const filenameDateFormat = parseDateFormat(body.filenameDateFormat)
+  const contentDateFormat = parseDateFormat(body.contentDateFormat)
   const deliveryProtocol = body.deliveryProtocol === "ftp" ? "ftp" : "sftp"
 
   if (reconciliationUsername && !isValidReconciliationUsername(reconciliationUsername)) {
@@ -60,6 +62,8 @@ export const parseReconciliationConfigInput = (
     reconciliationUsername,
     cutoffTimezone,
     filenameTimeDifference,
+    filenameDateFormat,
+    contentDateFormat,
     deliveryProtocol,
     sftpEnabled,
     sftpHost,
@@ -70,6 +74,9 @@ export const parseReconciliationConfigInput = (
     childConfigs: parseChildConfigs(body.childConfigs),
   }
 }
+
+const parseDateFormat = (value: unknown) =>
+  value === "aaaammdd" ? "aaaammdd" : "ddmmaaaa"
 
 const parseChildConfigs = (value: unknown) => {
   if (!Array.isArray(value)) {
