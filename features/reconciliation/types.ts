@@ -20,6 +20,8 @@ export type MexicanTimezone = (typeof MEXICAN_TIMEZONES)[number]
 export interface ReconciliationFileInput {
   reconciliationUsername: string
   filenameTimeDifference: string
+  filenameDateFormat: ReconciliationDateFormat
+  contentDateFormat: ReconciliationDateFormat
   reconciledDate: Date
   cutoffTimezone: MexicanTimezone
   transactions: NormalizedTransactionRecord[]
@@ -38,13 +40,19 @@ export type ReconciliationRunStatus =
   | "send_failed"
   | "generation_failed"
 
+export type ReconciliationDeliveryProtocol = "sftp" | "ftp"
+export type ReconciliationDateFormat = "ddmmaaaa" | "aaaammdd"
+
 export interface ReconciliationConfig {
   id: string
   ownerClientId: string
   isEnabled: boolean
-  reconciliationUsername: string
+  reconciliationUsername: string | null
   cutoffTimezone: MexicanTimezone
   filenameTimeDifference: string
+  filenameDateFormat: ReconciliationDateFormat
+  contentDateFormat: ReconciliationDateFormat
+  deliveryProtocol: ReconciliationDeliveryProtocol
   sftpEnabled: boolean
   sftpHost: string | null
   sftpPort: number
@@ -55,10 +63,20 @@ export interface ReconciliationConfig {
   updatedAt: string
 }
 
+export interface ReconciliationChildConfig {
+  id: string
+  configId: string
+  childClientId: string
+  reconciliationUsername: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface ReconciliationRun {
   id: string
   configId: string
   ownerClientId: string
+  subjectClientId: string
   reconciledDate: string
   filename: string | null
   storagePath: string | null
@@ -85,6 +103,7 @@ export interface UpdateReconciliationSendResultInput {
 export interface CreateReconciliationRunInput {
   configId: string
   ownerClientId: string
+  subjectClientId: string
   reconciledDate: string
   filename: string | null
   storagePath: string | null
@@ -99,13 +118,22 @@ export interface CreateReconciliationRunInput {
 export interface ReconciliationConfigInput {
   ownerClientId: string
   isEnabled: boolean
-  reconciliationUsername: string
+  reconciliationUsername: string | null
   cutoffTimezone: MexicanTimezone
   filenameTimeDifference: string
+  filenameDateFormat: ReconciliationDateFormat
+  contentDateFormat: ReconciliationDateFormat
+  deliveryProtocol: ReconciliationDeliveryProtocol
   sftpEnabled: boolean
   sftpHost: string | null
   sftpPort: number
   sftpUsername: string | null
   sftpRemotePath: string | null
   sftpPasswordSecretName: string | null
+  childConfigs: ReconciliationChildConfigInput[]
+}
+
+export interface ReconciliationChildConfigInput {
+  childClientId: string
+  reconciliationUsername: string
 }

@@ -189,7 +189,7 @@ Cliente que puede tener configuracion propia de conciliacion: **Cliente Padre** 
 _Avoid_: cliente hijo configurable, usuario del dashboard
 
 **Configuracion de Conciliacion**:
-Metadata administrada por un **Administrador Interno** para una **Cuenta Conciliable**: activacion, usuario de conciliacion, zona de corte, diferencia en nombre de archivo y datos SFTP.
+Metadata administrada por un **Administrador Interno** para una **Cuenta Conciliable**: activacion, usuarios de conciliacion por hijo cuando aplica, zona de corte, formatos de fecha, diferencia en nombre de archivo y datos SFTP.
 _Avoid_: preferencias de usuario final, configuracion por sucursal
 
 **Usuario de Conciliacion**:
@@ -197,7 +197,7 @@ Identificador capturado manualmente que se escribe como `[Usuario]` en el nombre
 _Avoid_: display name, external client id automatico, correo de usuario
 
 **Archivo de Conciliacion**:
-Archivo TXT de ancho fijo generado para una fecha conciliada; contiene un encabezado y solo transacciones exitosas incluidas en el alcance de la cuenta conciliable.
+Archivo TXT de ancho fijo generado para una fecha conciliada; contiene un encabezado y solo transacciones exitosas del cliente sujeto del archivo.
 _Avoid_: CSV, archivo regenerable al vuelo, reporte editable
 
 **Ejecucion de Conciliacion**:
@@ -240,7 +240,7 @@ _Avoid_: producto completo, analitica avanzada
 - El **Alcance de Consulta** de un **Cliente Padre** incluye su propio **External Client ID** y los **External Client ID** de sus clientes hijos.
 - El **Cliente Visible** se muestra en tabla, filtros y **Exportacion CSV** cuando el usuario puede consultar mas de un cliente.
 - Una **Cuenta Conciliable** puede ser un **Cliente Padre** o un cliente `standalone`; un **Cliente Hijo** no configura conciliacion propia.
-- La **Conciliacion TAE** de un **Cliente Padre** incluye los **External Client ID** activos de sus **Clientes Hijos** al momento de generar la **Ejecucion de Conciliacion**.
+- La **Conciliacion TAE** de un **Cliente Padre** genera un archivo independiente por cada **Cliente Hijo** activo con **External Client ID** al momento de generar la **Ejecucion de Conciliacion**.
 - La **Conciliacion TAE** de un cliente `standalone` incluye solo su propio **External Client ID**.
 - La **Configuracion de Conciliacion** se edita solo por **Administrador Interno**; usuarios de cliente pueden consultar configuracion enmascarada, historial y descargar archivos permitidos.
 - La **Zona de Corte** determina el dia conciliado; la **Diferencia en Nombre de Archivo** se guarda como valor de proveedor y no se deriva de la zona del servidor.

@@ -48,11 +48,11 @@ const handleCron = withApiErrorHandling(async (request: Request) => {
       results.push({
         ownerClientId: config.ownerClientId,
         client: ownerClient.displayName,
-        runId: result.run.id,
-        status: result.run.status,
-        created: !result.reused,
-        reused: result.reused,
-        sftpAttempted: result.sftpAttempted,
+        runCount: result.runs.length,
+        statuses: result.runs.map((item) => item.run.status),
+        created: result.runs.some((item) => !item.reused),
+        reused: result.runs.every((item) => item.reused),
+        sftpAttempted: result.runs.some((item) => item.sftpAttempted),
       })
     } catch (error) {
       results.push({
