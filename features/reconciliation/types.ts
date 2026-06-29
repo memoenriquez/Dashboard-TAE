@@ -38,6 +38,8 @@ export type ReconciliationRunStatus =
   | "send_failed"
   | "generation_failed"
 
+export type ReconciliationDeliveryProtocol = "sftp" | "ftp"
+
 export interface ReconciliationConfig {
   id: string
   ownerClientId: string
@@ -45,6 +47,7 @@ export interface ReconciliationConfig {
   reconciliationUsername: string | null
   cutoffTimezone: MexicanTimezone
   filenameTimeDifference: string
+  deliveryProtocol: ReconciliationDeliveryProtocol
   sftpEnabled: boolean
   sftpHost: string | null
   sftpPort: number
@@ -113,6 +116,7 @@ export interface ReconciliationConfigInput {
   reconciliationUsername: string | null
   cutoffTimezone: MexicanTimezone
   filenameTimeDifference: string
+  deliveryProtocol: ReconciliationDeliveryProtocol
   sftpEnabled: boolean
   sftpHost: string | null
   sftpPort: number

@@ -21,6 +21,7 @@ export const parseReconciliationConfigInput = (
     body.filenameTimeDifference,
     "Missing filename time difference"
   )
+  const deliveryProtocol = body.deliveryProtocol === "ftp" ? "ftp" : "sftp"
 
   if (reconciliationUsername && !isValidReconciliationUsername(reconciliationUsername)) {
     throw new ReconciliationValidationError("Invalid reconciliation username")
@@ -46,11 +47,11 @@ export const parseReconciliationConfigInput = (
   const sftpPasswordSecretName = parseOptionalString(body.sftpPasswordSecretName)
 
   if (sftpEnabled && !isEnabled) {
-    throw new ReconciliationValidationError("Daily file generation must be enabled before SFTP delivery")
+    throw new ReconciliationValidationError("Daily file generation must be enabled before delivery")
   }
 
   if (sftpEnabled && (!sftpHost || !sftpUsername || !sftpRemotePath || !sftpPasswordSecretName)) {
-    throw new ReconciliationValidationError("SFTP host, user, remote path, and Vault secret are required")
+    throw new ReconciliationValidationError("Delivery host, user, remote path, and Vault secret are required")
   }
 
   return {
@@ -59,6 +60,7 @@ export const parseReconciliationConfigInput = (
     reconciliationUsername,
     cutoffTimezone,
     filenameTimeDifference,
+    deliveryProtocol,
     sftpEnabled,
     sftpHost,
     sftpPort,

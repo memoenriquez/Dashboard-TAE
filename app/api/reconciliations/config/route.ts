@@ -56,6 +56,7 @@ export const PATCH = withApiErrorHandling(async (request: Request) => {
         targetId: config.id,
         metadata: {
           ownerClientId: config.ownerClientId,
+          deliveryProtocol: config.deliveryProtocol,
           sftpEnabled: config.sftpEnabled,
           cutoffTimezone: config.cutoffTimezone,
         },

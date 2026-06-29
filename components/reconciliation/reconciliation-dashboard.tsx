@@ -42,6 +42,7 @@ interface ReconciliationConfigRecord {
   reconciliationUsername: string | null
   cutoffTimezone: string
   filenameTimeDifference: string
+  deliveryProtocol: "sftp" | "ftp"
   sftpEnabled: boolean
   sftpHost: string | null
   sftpPort: number
@@ -216,7 +217,7 @@ export function ReconciliationDashboard() {
       return
     }
     setIsSubmitting(true)
-    const toastId = toast.loading("Probando conexión SFTP...")
+    const toastId = toast.loading("Probando conexión de entrega...")
     try {
       const response = await fetch("/api/reconciliations/config/test-sftp", {
         method: "POST",
@@ -225,13 +226,13 @@ export function ReconciliationDashboard() {
       })
 
       if (!response.ok) {
-        toast.error(await readApiErrorMessage(response, "No fue posible conectar al SFTP."), { id: toastId })
+        toast.error(await readApiErrorMessage(response, "No fue posible conectar al destino."), { id: toastId })
         return
       }
 
-      toast.success("Conexión SFTP exitosa.", { id: toastId })
+      toast.success("Conexión de entrega exitosa.", { id: toastId })
     } catch {
-      toast.error("No fue posible probar SFTP en este momento.", { id: toastId })
+      toast.error("No fue posible probar la entrega en este momento.", { id: toastId })
     } finally {
       setIsSubmitting(false)
     }
@@ -255,7 +256,7 @@ export function ReconciliationDashboard() {
       }
 
       const payload = (await response.json()) as { run: ReconciliationRunRecord }
-      showRunResultToast(payload.run, toastId, "Archivo enviado a SFTP.")
+      showRunResultToast(payload.run, toastId, "Archivo enviado.")
       await loadData()
     } catch {
       toast.error("No fue posible reintentar el envío en este momento.", { id: toastId })
@@ -559,8 +560,8 @@ function AdminConfigCard(props: {
             <div className="rounded-lg border bg-muted/20 p-3">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium">Entrega automática SFTP</p>
-                  <p className="text-xs text-muted-foreground">Nombre del secreto existente en Supabase Vault; no pegues la contraseña aquí.</p>
+                  <p className="text-sm font-medium">Entrega automática</p>
+                  <p className="text-xs text-muted-foreground">SFTP recomendado; FTP se permite solo si el cliente lo exige.</p>
                 </div>
                 <Select disabled={!props.form.isEnabled} value={props.form.sftpEnabled ? "true" : "false"} onValueChange={(value) => props.onFormChange({ ...props.form, sftpEnabled: value === "true" })}>
                   <SelectTrigger className="w-32 bg-background"><SelectValue /></SelectTrigger>
@@ -569,6 +570,7 @@ function AdminConfigCard(props: {
               </div>
               {showSftpFields ? (
                 <div className="grid gap-4 sm:grid-cols-2">
+                  <Field><FieldLabel>Protocolo</FieldLabel><Select disabled={disableSftpFields} value={props.form.deliveryProtocol} onValueChange={(value) => props.onFormChange({ ...props.form, deliveryProtocol: value === "ftp" ? "ftp" : "sftp" })}><SelectTrigger className="bg-background"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="sftp">SFTP</SelectItem><SelectItem value="ftp">FTP</SelectItem></SelectContent></Select></Field>
                   <Field><FieldLabel>Host</FieldLabel><Input disabled={disableSftpFields} value={props.form.sftpHost} onChange={(event) => props.onFormChange({ ...props.form, sftpHost: event.target.value })} /></Field>
                   <Field><FieldLabel>Puerto</FieldLabel><Input disabled={disableSftpFields} inputMode="numeric" value={props.form.sftpPort} onChange={(event) => props.onFormChange({ ...props.form, sftpPort: event.target.value })} /></Field>
                   <Field><FieldLabel>Usuario</FieldLabel><Input disabled={disableSftpFields} value={props.form.sftpUsername} onChange={(event) => props.onFormChange({ ...props.form, sftpUsername: event.target.value })} /></Field>
@@ -589,14 +591,14 @@ function AdminConfigCard(props: {
                 <SaveIcon data-icon="inline-start" /> {mode === "edit" ? "Guardar cambios" : "Crear configuración"}
               </Button>
               <Button type="button" variant="outline" disabled={props.isSubmitting || !props.config || props.isDirty} onClick={props.onTestSftp}>
-                <ServerIcon data-icon="inline-start" /> Probar SFTP
+                <ServerIcon data-icon="inline-start" /> Probar entrega
               </Button>
               <Button type="button" variant="outline" disabled={props.isSubmitting || !props.canGenerate} onClick={props.onGenerate}>
                 <PlayIcon data-icon="inline-start" /> Generar archivo
               </Button>
             </div>
             {!props.canGenerate ? <p className="text-sm text-muted-foreground">Activa y guarda la configuración antes de generar archivos.</p> : null}
-            {props.isDirty && props.config ? <p className="text-sm text-muted-foreground">Guarda cambios antes de probar SFTP.</p> : null}
+            {props.isDirty && props.config ? <p className="text-sm text-muted-foreground">Guarda cambios antes de probar la entrega.</p> : null}
           </FieldGroup>
         </form>
         </details>
@@ -732,7 +734,7 @@ function RunHistoryCard(props: {
                 <SummaryItem label="Archivo" value={getFileStatusLabel(selectedErrorRun)} />
                 <SummaryItem label="Entrega" value={getDeliveryStatusLabel(props.config, selectedErrorRun)} />
                 <SummaryItem label="Nombre" value={selectedErrorRun.filename ?? "No disponible"} />
-                <SummaryItem label="Ruta SFTP" value={getSftpPath(props.config, selectedErrorRun)} />
+                <SummaryItem label="Ruta remota" value={getSftpPath(props.config, selectedErrorRun)} />
                 <SummaryItem label="Tx" value={String(selectedErrorRun.transactionCount)} />
                 <SummaryItem label="Monto" value={formatCurrency(selectedErrorRun.totalAmount)} />
               </div>
@@ -908,12 +910,12 @@ const getSftpPath = (config: ReconciliationConfigRecord | null, run: Reconciliat
 
 const showRunResultToast = (run: ReconciliationRunRecord, toastId: string | number, fallback: string) => {
   if (run.status === "sent") {
-    toast.success("Archivo generado y enviado a SFTP.", { id: toastId })
+    toast.success("Archivo generado y enviado.", { id: toastId })
     return
   }
 
   if (run.status === "send_failed") {
-    toast.error(`Archivo generado, pero falló el envío SFTP: ${run.lastSendError ?? "revisa el detalle."}`, { id: toastId })
+    toast.error(`Archivo generado, pero falló el envío: ${run.lastSendError ?? "revisa el detalle."}`, { id: toastId })
     return
   }
 
@@ -941,6 +943,7 @@ const getConfigForm = (
   reconciliationUsername: config?.reconciliationUsername ?? "",
   cutoffTimezone: config?.cutoffTimezone ?? "America/Mexico_City",
   filenameTimeDifference: config?.filenameTimeDifference ?? "-1",
+  deliveryProtocol: config?.deliveryProtocol ?? "sftp",
   sftpEnabled: config?.sftpEnabled ?? false,
   sftpHost: config?.sftpHost ?? "",
   sftpPort: String(config?.sftpPort ?? 22),

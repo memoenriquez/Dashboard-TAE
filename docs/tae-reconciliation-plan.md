@@ -12,6 +12,7 @@ This plan is still in definition mode. It documents the intended product and tec
 - Editor: internal admin only.
 - Viewer: internal admin plus parent/standalone client users for their own runs.
 - Operational owner: internal admin / operations owns daily failures and SFTP retries.
+- Delivery protocol: SFTP by default; FTP is allowed only when a client explicitly requires it.
 - Cron: once daily at 03:00 Mexico City time, triggered by an external scheduler that calls this project's API.
 - Storage: private Supabase Storage bucket, not Postgres blobs.
 - Retention target: 90 days, enforced by a scheduled cleanup that deletes objects through the Supabase Storage API.
@@ -36,6 +37,7 @@ create table public.reconciliation_configs (
   reconciliation_username text,
   cutoff_timezone text not null,
   filename_time_difference text not null,
+  delivery_protocol text not null default 'sftp',
   sftp_enabled boolean not null default false,
   sftp_host text,
   sftp_port integer not null default 22,
@@ -45,7 +47,8 @@ create table public.reconciliation_configs (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (owner_client_id),
-  constraint reconciliation_sftp_port check (sftp_port between 1 and 65535)
+  constraint reconciliation_sftp_port check (sftp_port between 1 and 65535),
+  constraint reconciliation_delivery_protocol_check check (delivery_protocol in ('sftp', 'ftp'))
 );
 ```
 

@@ -15,6 +15,26 @@ describe("parseReconciliationConfigInput", () => {
 
     expect(input.reconciliationUsername).toBe("CTC_01-TAE")
     expect(input.filenameTimeDifference).toBe("-1")
+    expect(input.deliveryProtocol).toBe("sftp")
+  })
+
+  it("accepts FTP as a delivery protocol", () => {
+    const input = parseReconciliationConfigInput({
+      ownerClientId: "client-id",
+      isEnabled: true,
+      reconciliationUsername: "CTC",
+      cutoffTimezone: "America/Mexico_City",
+      filenameTimeDifference: "-1",
+      deliveryProtocol: "ftp",
+      sftpEnabled: true,
+      sftpHost: "ftp.example.com",
+      sftpPort: 21,
+      sftpUsername: "user",
+      sftpRemotePath: "/uploads",
+      sftpPasswordSecretName: "secret-name",
+    })
+
+    expect(input.deliveryProtocol).toBe("ftp")
   })
 
   it("rejects unsafe filename segments", () => {
@@ -37,7 +57,7 @@ describe("parseReconciliationConfigInput", () => {
     })).toThrow("Invalid filename time difference")
   })
 
-  it("rejects SFTP delivery when daily generation is disabled", () => {
+  it("rejects delivery when daily generation is disabled", () => {
     expect(() => parseReconciliationConfigInput({
       ownerClientId: "client-id",
       isEnabled: false,
@@ -50,6 +70,6 @@ describe("parseReconciliationConfigInput", () => {
       sftpUsername: "user",
       sftpRemotePath: "/uploads",
       sftpPasswordSecretName: "secret-name",
-    })).toThrow("Daily file generation must be enabled before SFTP delivery")
+    })).toThrow("Daily file generation must be enabled before delivery")
   })
 })
