@@ -55,6 +55,7 @@ Use this checklist to prepare the local prototype demo.
   - `/dashboard/admin/groups` creates parent/child groups.
 - Log in as a parent client user and confirm it sees own transactions plus child transactions.
 - Log in as a child client user and confirm it sees only its own transactions.
+- Use the quick date filters and confirm they update the selected full-day range.
 - Open transaction detail and confirm response code/message and API reference appear.
 - Export CSV and confirm it respects active filters and scope.
 

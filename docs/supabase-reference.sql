@@ -1,5 +1,14 @@
 -- Reference SQL for the dashboard metadata model.
 -- Apply manually from the Supabase Dashboard for the prototype.
+-- This file describes the intended current schema for a fresh project. For an
+-- existing project, apply tracked migrations instead of rerunning only the
+-- create table if not exists statements; those statements do not add new
+-- columns, constraints, indexes, or policies to existing objects.
+-- Recent required migrations include:
+-- - 20260629180015_add_child_scoped_reconciliation_files
+-- - 20260629183320_add_reconciliation_delivery_protocol
+-- - 20260629194441_add_reconciliation_date_formats
+-- - 20260702011513_create_opening_balance_snapshots
 
 create table if not exists public.clients (
   id uuid primary key default gen_random_uuid(),
@@ -347,6 +356,11 @@ for select
 to authenticated
 using ((select private.is_internal_admin()));
 
+-- Audit event inserts must be performed by trusted server-side code after the
+-- route authorizes the user with a session client. The secret key bypasses RLS,
+-- so no authenticated insert policy is defined; do not add a broad authenticated
+-- INSERT policy because users could forge audit records.
+
 create policy "Reconciliation configs are readable by internal admins"
 on public.reconciliation_configs
 for select
@@ -446,11 +460,9 @@ using (
   )
 );
 
--- Inserts must be performed by trusted server-side code using a secret key.
--- Transaction detail/export routes should authorize the user with a session client first,
--- then write audit_events through the server-only trusted audit writer.
--- The secret key bypasses RLS, so no authenticated insert policy is defined; do not
--- add a broad authenticated INSERT policy because users could forge audit records.
+-- Opening balance snapshots are written only by the trusted cron route using a
+-- server-side secret key. Browser-authenticated users can read snapshots within
+-- their client scope, but must not insert or update them directly.
 
 -- Trusted server-side admin code uses this RPC to replace group membership
 -- atomically. It is intentionally not executable by browser roles.

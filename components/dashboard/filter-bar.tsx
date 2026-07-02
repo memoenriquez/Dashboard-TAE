@@ -28,7 +28,21 @@ interface FilterBarProps {
   filters: TransactionFilterState
   showClientFilter?: boolean
   onFiltersChange: (filters: TransactionFilterState) => void
-  onApply: () => void
+  onApply: (filters?: TransactionFilterState) => void
+}
+
+const datePresets = [
+  { label: "Hoy", days: 1 },
+  { label: "Ayer", days: 1, offset: 1 },
+  { label: "Últimos 7 días", days: 7 },
+  { label: "Últimos 30 días", days: 30 },
+]
+
+const formatDateInput = (date: Date) => {
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+
+  return `${date.getFullYear()}-${month}-${day}`
 }
 
 export function FilterBar({
@@ -47,6 +61,23 @@ export function FilterBar({
     })
   }
 
+  const applyDatePreset = (days: number, offset = 0) => {
+    const to = new Date()
+    to.setDate(to.getDate() - offset)
+
+    const from = new Date(to)
+    from.setDate(from.getDate() - days + 1)
+
+    const nextFilters = {
+      ...filters,
+      from: formatDateInput(from),
+      to: formatDateInput(to),
+    }
+
+    onFiltersChange(nextFilters)
+    onApply(nextFilters)
+  }
+
   return (
     <form
       className="rounded-2xl border bg-card shadow-sm"
@@ -62,6 +93,19 @@ export function FilterBar({
             <p className="text-xs text-muted-foreground">
               Actualizan el resumen, la tabla, el detalle y la exportación.
             </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {datePresets.map((preset) => (
+              <Button
+                key={preset.label}
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => applyDatePreset(preset.days, preset.offset)}
+              >
+                {preset.label}
+              </Button>
+            ))}
           </div>
         </div>
 

@@ -217,6 +217,7 @@ MVP filters:
 Rules:
 
 - Default date range is the last 7 days.
+- Quick date presets may set common full-day ranges such as today, yesterday, last 7 days, and last 30 days.
 - Maximum interactive range is 90 days.
 - KPIs are calculated across the full filtered and authorized result set, not only the visible page.
 - CSV export uses the same filters, scope, and 90-day limit.

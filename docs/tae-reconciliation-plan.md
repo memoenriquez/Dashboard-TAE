@@ -239,6 +239,7 @@ Vercel Cron:
 - `vercel.json` schedules `/api/cron/reconciliations/cleanup` at `0 8 * * *` UTC.
 - Vercel Cron always calls `GET` and sends `Authorization: Bearer <CRON_SECRET>` when the `CRON_SECRET` environment variable exists.
 - Cron schedules are UTC. Keep `RECONCILIATION_CRON_TIMEZONE=America/Mexico_City` so the generated reconciliation date is computed from the business timezone.
+- Opening balance snapshots are a separate cron at `/api/cron/opening-balances`; they use `OPENING_BALANCE_TIMEZONE` and do not affect reconciliation file dates.
 - Use a password-manager generated random string of at least 16 characters for `CRON_SECRET`; it is only a shared bearer token between Vercel and these routes.
 
 Manual/local protected runs:
