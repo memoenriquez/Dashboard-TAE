@@ -119,8 +119,8 @@ export function MetricsDashboard({
     })
   }, [loadMetrics])
 
-  const handleApplyFilters = () => {
-    setAppliedFilters({ ...filters })
+  const handleApplyFilters = (nextFilters = filters) => {
+    setAppliedFilters({ ...nextFilters })
   }
 
   return (
@@ -185,7 +185,7 @@ export function MetricsDashboard({
           </AlertTitle>
           <AlertDescription className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
             <span>Presiona Consultar para actualizar las métricas.</span>
-            <Button type="button" size="sm" onClick={handleApplyFilters}>
+            <Button type="button" size="sm" onClick={() => handleApplyFilters()}>
               Aplicar ahora
             </Button>
           </AlertDescription>

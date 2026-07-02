@@ -186,9 +186,9 @@ export function TransactionDashboard({
     setDetail(transaction)
   }
 
-  const handleApplyFilters = () => {
+  const handleApplyFilters = (nextFilters = filters) => {
     setPage(1)
-    setAppliedFilters({ ...filters })
+    setAppliedFilters({ ...nextFilters })
   }
 
   const totalPages = Math.max(
@@ -278,7 +278,7 @@ export function TransactionDashboard({
               Presiona Consultar para actualizar el resumen, la tabla y la
               exportación.
             </span>
-            <Button type="button" size="sm" onClick={handleApplyFilters}>
+            <Button type="button" size="sm" onClick={() => handleApplyFilters()}>
               Aplicar ahora
             </Button>
           </AlertDescription>

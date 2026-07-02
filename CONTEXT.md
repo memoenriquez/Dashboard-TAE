@@ -84,6 +84,14 @@ _Avoid_: metrica de pagina visible
 Suma monetaria vendida o recargada al usuario final en las transacciones del rango.
 _Avoid_: consumo, saldo
 
+**Saldo Actual**:
+Saldo disponible de una **Cuenta Externa** consultado directamente desde el **Servicio API TAE**. No depende del rango de fechas ni representa monto vendido.
+_Avoid_: saldo consumido, monto vendido
+
+**Saldo Inicial del Dia**:
+Snapshot diario del saldo de una **Cuenta Externa** capturado por cron al inicio operativo del dia en `OPENING_BALANCE_TIMEZONE`. Se muestra junto al saldo actual cuando existe para la fecha de negocio.
+_Avoid_: saldo contable oficial, saldo calculado desde transacciones
+
 **Saldo Consumido**:
 Monto debitado del saldo o cuenta operativa del cliente por las transacciones del rango.
 _Avoid_: monto vendido, comision
@@ -171,6 +179,10 @@ _Avoid_: llamada directa desde browser, scope confiado al cliente
 **Rango de Consulta**:
 Periodo de fechas que el usuario selecciona para consultar transacciones, con un maximo interactivo de 90 dias.
 _Avoid_: consulta sin limite
+
+**Filtro Rapido de Fecha**:
+Accion de UI que ajusta el **Rango de Consulta** a rangos comunes como hoy, ayer, ultimos 7 dias o ultimos 30 dias. Sigue usando filtros de fecha completa; no representa ventanas exactas por hora.
+_Avoid_: filtro en tiempo real, ultimas N horas exactas
 
 **Endpoint del Dashboard**:
 Ruta backend propia del dashboard que aplica autenticacion, alcance y reglas del producto antes de consultar o devolver informacion.

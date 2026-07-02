@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation"
 
-import { AdminSetupGuide } from "@/components/admin/setup-guide"
 import { resolveCurrentDashboardUiAccess } from "@/features/auth/profile"
 import { requireCurrentUser } from "@/lib/auth/session"
 import { createDashboardMetadataRepository } from "@/lib/supabase/metadata-repository"
@@ -38,7 +37,6 @@ export default async function AdminLayout({
           </p>
         </div>
       </div>
-      <AdminSetupGuide />
       {children}
     </main>
   )

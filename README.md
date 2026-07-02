@@ -36,17 +36,25 @@ Runtime tuning values:
 - `TAE_FANOUT_CONCURRENCY`
 - `TAE_ACCOUNT_PAGE_SIZE`
 - `TAE_MAX_PAGES_PER_ACCOUNT`
+- `TAE_FANOUT_MAX_ACCOUNTS`
 - `TAE_FANOUT_MAX_ROWS`
+- `OPENING_BALANCE_TIMEZONE`
 - `RECONCILIATION_CRON_TIMEZONE`
 - `RECONCILIATION_RETENTION_DAYS`
 
-## Reconciliation Cron
+## Cron Jobs
 
-`vercel.json` schedules reconciliation generation at `07:00 UTC` and cleanup at `08:00 UTC`. Vercel calls cron paths with `GET` and automatically sends `Authorization: Bearer <CRON_SECRET>` when `CRON_SECRET` is configured in the project.
+`vercel.json` schedules:
+
+- Opening balance snapshots at `06:00 UTC` through `/api/cron/opening-balances`.
+- Reconciliation generation at `07:00 UTC` through `/api/cron/reconciliations`.
+- Reconciliation cleanup at `08:00 UTC` through `/api/cron/reconciliations/cleanup`.
+
+Vercel calls cron paths with `GET` and automatically sends `Authorization: Bearer <CRON_SECRET>` when `CRON_SECRET` is configured in the project.
 
 Use a random password-manager generated value for `CRON_SECRET`; it is only compared by the cron routes and is not stored in the database.
 
-For protected preview deployments, include `x-vercel-protection-bypass: <VERCEL_AUTOMATION_BYPASS_SECRET>` when manually smoke-testing cron routes. Generation responses report whether each run was `created` or `reused`; reused runs are not regenerated or resent.
+For protected preview deployments, include `x-vercel-protection-bypass: <VERCEL_AUTOMATION_BYPASS_SECRET>` when manually smoke-testing cron routes. Reconciliation generation responses report whether each run was `created` or `reused`; reused runs are not regenerated or resent. Opening balance responses report one result per external client as `created`, `reused`, or `failed`.
 
 ## Verification
 
