@@ -5,12 +5,18 @@ import { DashboardAccessDeniedError } from "@/features/auth/errors"
 const {
   applyExternalClientFilterToScopeMock,
   createTaeApiBalanceRepositoryMock,
+  createAdminClientMock,
+  createOpeningBalanceSnapshotRepositoryMock,
   getAccountBalanceMock,
+  getOpeningBalanceSnapshotMock,
   resolveTransactionRequestContextMock,
 } = vi.hoisted(() => ({
   applyExternalClientFilterToScopeMock: vi.fn(),
   createTaeApiBalanceRepositoryMock: vi.fn(),
+  createAdminClientMock: vi.fn(),
+  createOpeningBalanceSnapshotRepositoryMock: vi.fn(),
   getAccountBalanceMock: vi.fn(),
+  getOpeningBalanceSnapshotMock: vi.fn(),
   resolveTransactionRequestContextMock: vi.fn(),
 }))
 
@@ -22,8 +28,20 @@ vi.mock("@/features/accounts/balance-service", () => ({
   getAccountBalance: getAccountBalanceMock,
 }))
 
+vi.mock("@/features/opening-balances/snapshot-service", () => ({
+  getOpeningBalanceSnapshot: getOpeningBalanceSnapshotMock,
+}))
+
 vi.mock("@/lib/tae-api/balance-repository", () => ({
   createTaeApiBalanceRepository: createTaeApiBalanceRepositoryMock,
+}))
+
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: createAdminClientMock,
+}))
+
+vi.mock("@/lib/supabase/opening-balance-repository", () => ({
+  createOpeningBalanceSnapshotRepository: createOpeningBalanceSnapshotRepositoryMock,
 }))
 
 vi.mock("../../_lib/dashboard-context", () => ({
@@ -44,12 +62,22 @@ describe("GET /api/accounts/balance", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     createTaeApiBalanceRepositoryMock.mockReturnValue({ source: "tae-balance" })
+    createAdminClientMock.mockReturnValue({ source: "supabase-admin" })
+    createOpeningBalanceSnapshotRepositoryMock.mockReturnValue({ source: "opening-balance" })
     resolveTransactionRequestContextMock.mockResolvedValue({ scope })
     applyExternalClientFilterToScopeMock.mockReturnValue(filteredScope)
     getAccountBalanceMock.mockResolvedValue({
       externalClientId: 1001,
       balance: 1234.56,
       updatedAt: "2026-06-04T12:00:00.000Z",
+    })
+    getOpeningBalanceSnapshotMock.mockResolvedValue({
+      externalClientId: 1001,
+      businessDate: "2026-06-04",
+      timeZone: "America/Mexico_City",
+      openingBalance: 1000,
+      sourceUpdatedAt: "2026-06-04T06:00:00.000Z",
+      capturedAt: "2026-06-04T06:00:00.000Z",
     })
   })
 
@@ -65,6 +93,14 @@ describe("GET /api/accounts/balance", () => {
       externalClientId: 1001,
       balance: 1234.56,
       updatedAt: "2026-06-04T12:00:00.000Z",
+      openingBalance: {
+        externalClientId: 1001,
+        businessDate: "2026-06-04",
+        timeZone: "America/Mexico_City",
+        openingBalance: 1000,
+        sourceUpdatedAt: "2026-06-04T06:00:00.000Z",
+        capturedAt: "2026-06-04T06:00:00.000Z",
+      },
     })
     expect(applyExternalClientFilterToScopeMock).toHaveBeenCalledWith(scope, 1001)
     expect(getAccountBalanceMock).toHaveBeenCalledWith({
@@ -83,6 +119,24 @@ describe("GET /api/accounts/balance", () => {
       error: "Selecciona una cuenta para consultar saldo.",
     })
     expect(getAccountBalanceMock).not.toHaveBeenCalled()
+    expect(getOpeningBalanceSnapshotMock).not.toHaveBeenCalled()
+  })
+
+  it("still returns current balance when the opening balance lookup fails", async () => {
+    getOpeningBalanceSnapshotMock.mockRejectedValue(new Error("relation does not exist"))
+    const { GET } = await import("./route")
+
+    const response = await GET(
+      new Request("http://localhost/api/accounts/balance?externalClientId=1001")
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      externalClientId: 1001,
+      balance: 1234.56,
+      updatedAt: "2026-06-04T12:00:00.000Z",
+      openingBalance: null,
+    })
   })
 
   it("does not consult balance when the requested account is outside scope", async () => {
@@ -98,5 +152,6 @@ describe("GET /api/accounts/balance", () => {
     expect(response.status).toBe(403)
     await expect(response.json()).resolves.toEqual({ error: "Forbidden" })
     expect(getAccountBalanceMock).not.toHaveBeenCalled()
+    expect(getOpeningBalanceSnapshotMock).not.toHaveBeenCalled()
   })
 })

@@ -49,6 +49,23 @@ describe("createTaeApiClient", () => {
     )
   })
 
+  it("preserves non-secret provider error messages", async () => {
+    vi.stubEnv("TAE_API_BASE_URL", "https://api.taectc.mx/api/Info")
+    vi.stubEnv("TAE_API_KEY", "secret-key")
+    const requestJson = vi.fn().mockResolvedValue({
+      success: false,
+      message: "Cuenta no encontrada",
+      data: null,
+    })
+    const { createTaeApiClient } = await import("./client")
+
+    const client = createTaeApiClient({ requestJson })
+
+    await expect(client.getBalanceAccount({ cuentaID: 8100000099 })).rejects.toThrow(
+      "Cuenta no encontrada"
+    )
+  })
+
   it("rejects non-HTTPS base URLs before sending the ApiKey", async () => {
     vi.stubEnv("TAE_API_BASE_URL", "http://api.taectc.mx/api/Info")
     vi.stubEnv("TAE_API_KEY", "secret-key")

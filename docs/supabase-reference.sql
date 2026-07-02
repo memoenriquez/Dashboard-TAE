@@ -117,6 +117,18 @@ create table if not exists public.reconciliation_runs (
   unique (owner_client_id, subject_client_id, reconciled_date)
 );
 
+create table if not exists public.opening_balance_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  external_client_id bigint not null,
+  business_date date not null,
+  time_zone text not null,
+  opening_balance numeric(12, 2) not null,
+  source_updated_at timestamptz not null,
+  captured_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  unique (external_client_id, business_date)
+);
+
 create index if not exists profiles_client_id_idx on public.profiles (client_id);
 create unique index if not exists clients_external_client_id_unique_idx
   on public.clients (external_client_id)
@@ -150,6 +162,8 @@ create index if not exists reconciliation_runs_status_idx
 create index if not exists reconciliation_runs_file_cleanup_idx
   on public.reconciliation_runs (reconciled_date)
   where storage_path is not null and file_deleted_at is null;
+create index if not exists opening_balance_snapshots_client_date_idx
+  on public.opening_balance_snapshots (external_client_id, business_date desc);
 create unique index if not exists profiles_single_internal_admin_idx
   on public.profiles ((is_internal_admin))
   where is_internal_admin = true;
@@ -162,6 +176,7 @@ alter table public.audit_events enable row level security;
 alter table public.reconciliation_configs enable row level security;
 alter table public.reconciliation_child_configs enable row level security;
 alter table public.reconciliation_runs enable row level security;
+alter table public.opening_balance_snapshots enable row level security;
 
 create schema if not exists private;
 
@@ -406,6 +421,30 @@ on public.reconciliation_runs
 for delete
 to authenticated
 using ((select private.is_internal_admin()));
+
+create policy "Opening balance snapshots are readable within client scope"
+on public.opening_balance_snapshots
+for select
+to authenticated
+using (
+  (select private.is_internal_admin())
+  or exists (
+    select 1
+    from public.profiles p
+    join public.clients c on c.id = p.client_id
+    where p.id = (select auth.uid())
+      and c.external_client_id = opening_balance_snapshots.external_client_id
+  )
+  or exists (
+    select 1
+    from public.profiles p
+    join public.client_groups cg on cg.parent_client_id = p.client_id
+    join public.client_group_members cgm on cgm.group_id = cg.id
+    join public.clients c on c.id = cgm.child_client_id
+    where p.id = (select auth.uid())
+      and c.external_client_id = opening_balance_snapshots.external_client_id
+  )
+);
 
 -- Inserts must be performed by trusted server-side code using a secret key.
 -- Transaction detail/export routes should authorize the user with a session client first,

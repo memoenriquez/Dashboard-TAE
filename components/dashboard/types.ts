@@ -33,6 +33,14 @@ export interface AccountBalanceResponse {
   externalClientId: number
   balance: number
   updatedAt: string
+  openingBalance: {
+    externalClientId: number
+    businessDate: string
+    timeZone: string
+    openingBalance: number
+    sourceUpdatedAt: string
+    capturedAt: string
+  } | null
 }
 
 export interface TransactionsResponse {
@@ -40,6 +48,7 @@ export interface TransactionsResponse {
   kpis: {
     transactionCount: number
     soldAmount: number
+    todaySoldAmount: number
   }
   pagination: {
     page: number

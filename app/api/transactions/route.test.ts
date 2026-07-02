@@ -70,5 +70,17 @@ describe("GET /api/transactions", () => {
         pageSize: 25,
       })
     )
+    expect(listTransactionsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        scope: filteredScope,
+        filters: expect.objectContaining({
+          status: "all",
+          phoneNumber: null,
+          reference: null,
+        }),
+        page: 1,
+        pageSize: 1,
+      })
+    )
   })
 })
