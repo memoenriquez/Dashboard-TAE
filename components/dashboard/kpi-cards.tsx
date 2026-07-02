@@ -14,6 +14,7 @@ import type { AccountBalanceResponse } from "./types"
 interface KpiCardsProps {
   transactionCount: number
   soldAmount: number
+  todaySoldAmount: number
   accountBalance: AccountBalanceResponse | null
   accountBalanceStatus: "error" | "loading" | "ready" | "requires-selection"
   accountBalanceMessage?: string
@@ -22,6 +23,7 @@ interface KpiCardsProps {
 export function KpiCards({
   transactionCount,
   soldAmount,
+  todaySoldAmount,
   accountBalance,
   accountBalanceStatus,
   accountBalanceMessage,
@@ -61,7 +63,7 @@ export function KpiCards({
             })}
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
-            Suma solo transacciones exitosas.
+            Hoy: {formatCurrency(todaySoldAmount)} · America/Mexico_City
           </p>
         </CardContent>
       </Card>
@@ -85,6 +87,9 @@ export function KpiCards({
               <p className="mt-2 text-xs text-muted-foreground">
                 CuentaID {accountBalance.externalClientId}
               </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Inicio del día: {formatOpeningBalance(accountBalance)}
+              </p>
             </>
           ) : (
             <>
@@ -100,6 +105,26 @@ export function KpiCards({
       </Card>
     </div>
   )
+}
+
+const formatCurrency = (value: number) =>
+  value.toLocaleString("es-MX", {
+    style: "currency",
+    currency: "MXN",
+  })
+
+const formatOpeningBalance = (accountBalance: AccountBalanceResponse) => {
+  if (!accountBalance.openingBalance) {
+    return "No disponible"
+  }
+
+  const capturedAt = new Date(accountBalance.openingBalance.capturedAt)
+
+  return `${formatCurrency(accountBalance.openingBalance.openingBalance)} · capturado ${capturedAt.toLocaleTimeString("es-MX", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: accountBalance.openingBalance.timeZone,
+  })} ${accountBalance.openingBalance.timeZone}`
 }
 
 const getAccountBalanceFallbackLabel = (

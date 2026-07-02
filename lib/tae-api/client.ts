@@ -86,7 +86,7 @@ const requestTae = async <TData>(input: {
   })) as Partial<TaeApiEnvelope<TData>>
 
   if (!envelope.success) {
-    throw new TaeApiError()
+    throw new TaeApiError(sanitizeProviderMessage(envelope.message, input.apiKey))
   }
 
   return envelope.data as TData
@@ -116,7 +116,7 @@ const requestJsonWithGetBody = (input: RequestJsonInput) =>
         })
         response.on("end", () => {
           if (!response.statusCode || response.statusCode < 200 || response.statusCode >= 300) {
-            reject(new TaeApiError())
+            reject(new TaeApiError(`TAE API returned HTTP ${response.statusCode ?? "unknown"}`))
             return
           }
 
@@ -132,8 +132,8 @@ const requestJsonWithGetBody = (input: RequestJsonInput) =>
     request.on("timeout", () => {
       request.destroy(new TaeApiError("TAE API request timed out"))
     })
-    request.on("error", () => {
-      reject(new TaeApiError())
+    request.on("error", (error) => {
+      reject(new TaeApiError(`TAE API request failed: ${error.message}`))
     })
     request.write(payload)
     request.end()
@@ -147,6 +147,14 @@ const getRequiredEnv = (name: string) => {
   }
 
   return value
+}
+
+const sanitizeProviderMessage = (message: string | null | undefined, apiKey: string) => {
+  if (!message) {
+    return "TAE API request failed"
+  }
+
+  return message.replaceAll(apiKey, "[REDACTED]")
 }
 
 const getRequiredHttpsBaseUrl = (name: string) => {

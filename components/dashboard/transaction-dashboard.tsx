@@ -294,6 +294,7 @@ export function TransactionDashboard({
           <KpiCards
             transactionCount={data?.kpis.transactionCount ?? 0}
             soldAmount={data?.kpis.soldAmount ?? 0}
+            todaySoldAmount={data?.kpis.todaySoldAmount ?? 0}
             accountBalance={accountBalance}
             accountBalanceStatus={accountBalanceStatus}
             accountBalanceMessage={accountBalanceError ?? undefined}
